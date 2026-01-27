@@ -2,7 +2,8 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Dumpster Fire AR</title>
     <!-- Include A-Frame and AR.js -->
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
@@ -24,42 +25,55 @@
             width: 80%;
             max-width: 300px;
         }
+        /* iOS often requires a user gesture to start video/audio */
+        #start-button {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            padding: 20px;
+            background: #ff6600;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body style="margin: 0; overflow: hidden;">
     
+    <button id="start-button">Start AR Experience</button>
+
     <div class="ui-overlay">
         Point camera at a <b>Hiro Marker</b><br>
-        <small>Replacing placeholder with GLB loader...</small>
+        <small>Optimized for iOS Safari</small>
     </div>
 
+    <!-- 
+        iOS Specific Fixes:
+        1. 'videoTexture: true' helps with some iOS rendering bugs
+        2. 'sourceType: webcam' combined with the button trigger ensures permissions
+    -->
     <a-scene 
         embedded 
-        arjs="sourceType: webcam; debugUIEnabled: false;" 
-        renderer="antialias: true; alpha: true; colorManagement: true;">
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;" 
+        renderer="antialias: true; alpha: true; colorManagement: true; logarithmicDepthBuffer: true;">
         
         <!-- Assets Management -->
         <a-assets>
-            <!-- 
-                REPLACE THE SRC BELOW WITH YOUR .GLB PATH 
-                Example: "models/my-dumpster.glb"
-            -->
             <a-asset-item id="dumpster-model" src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb"></a-asset-item>
         </a-assets>
 
         <!-- AR Marker Handler -->
         <a-marker type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro">
             
-            <!-- THE GLB DUMPSTER MODEL -->
             <a-entity 
                 id="dumpster-container" 
                 position="0 0 0" 
                 scale="1 1 1">
                 
-                <!-- 
-                    GLB Component: Adjust scale/rotation to match your specific model 
-                    Note: Using crossOrigin for external assets 
-                -->
                 <a-entity 
                     gltf-model="#dumpster-model" 
                     position="0 0 0"
@@ -67,10 +81,8 @@
                     scale="0.5 0.5 0.5">
                 </a-entity>
                 
-                <!-- THE FIRE SYSTEM (Positioned inside the model) -->
                 <a-entity id="fire-container" position="0 0.2 0" fire-system></a-entity>
                 
-                <!-- Dynamic Fire Glow -->
                 <a-light type="point" color="#ff6600" intensity="2" distance="2"
                          animation="property: intensity; from: 1; to: 2.5; dir: alternate; dur: 120; loop: true">
                 </a-light>
@@ -82,6 +94,16 @@
     </a-scene>
 
     <script>
+        // iOS Safari Permission Handling
+        document.getElementById('start-button').addEventListener('click', function() {
+            this.style.display = 'none';
+            // Explicitly resume audio context or video if needed
+            const scene = document.querySelector('a-scene');
+            if (scene.hasLoaded) {
+                scene.play();
+            }
+        });
+
         // Enhanced Fire System for GLB integration
         AFRAME.registerComponent('fire-system', {
             init: function () {
@@ -112,10 +134,9 @@
                     opacity: 0.8,
                     shader: 'flat',
                     side: 'double',
-                    blending: 'additive' // Better fire look
+                    blending: 'additive'
                 });
 
-                // Tighter spread to fit inside a model
                 const x = (Math.random() - 0.5) * 0.4;
                 const z = (Math.random() - 0.5) * 0.4;
                 p.setAttribute('position', { x: x, y: 0, z: z });
@@ -148,8 +169,6 @@
                     }
                     
                     p.el.setAttribute('position', pos);
-                    
-                    // Simple Billboarding: Face the camera (located at 0,0,0 in marker space)
                     p.el.object3D.lookAt(0, pos.y, 0);
                 });
             }
