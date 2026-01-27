@@ -21,6 +21,8 @@
             font-family: sans-serif;
             text-align: center;
             pointer-events: none;
+            width: 80%;
+            max-width: 300px;
         }
     </style>
 </head>
@@ -28,37 +30,49 @@
     
     <div class="ui-overlay">
         Point camera at a <b>Hiro Marker</b><br>
-        <small>The fire is simulated with a custom particle system</small>
+        <small>Replacing placeholder with GLB loader...</small>
     </div>
 
     <a-scene 
         embedded 
         arjs="sourceType: webcam; debugUIEnabled: false;" 
-        renderer="antialias: true; alpha: true;">
+        renderer="antialias: true; alpha: true; colorManagement: true;">
         
-        <!-- Assets -->
+        <!-- Assets Management -->
         <a-assets>
-            <!-- Mocking the dumpster with primitives since we can't load local files -->
-            <a-asset-item id="myModel" src="your_model.glb"></a-asset-item>
+            <!-- 
+                REPLACE THE SRC BELOW WITH YOUR .GLB PATH 
+                Example: "models/my-dumpster.glb"
+            -->
+            <a-asset-item id="dumpster-model" src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb"></a-asset-item>
         </a-assets>
 
         <!-- AR Marker Handler -->
         <a-marker type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro">
             
-            <!-- THE DUMPSTER (Placeholder Geometry) -->
-            <a-entity id="dumpster" position="0 0.6 0">
-                <!-- Main Body -->
-                <a-entity gltf-model="#myModel"></a-entity>
-                <!-- Floor -->
-                <a-entity geometry="primitive: box; width: 2; height: 0.1; depth: 1.4" material="color: #1a252f" position="0 -0.6 0"></a-entity>
+            <!-- THE GLB DUMPSTER MODEL -->
+            <a-entity 
+                id="dumpster-container" 
+                position="0 0 0" 
+                scale="1 1 1">
                 
-                <!-- THE FIRE SYSTEM -->
-                <!-- We use a custom component to handle particles inside the dumpster -->
-                <a-entity id="fire-container" position="0 -0.3 0" fire-system></a-entity>
+                <!-- 
+                    GLB Component: Adjust scale/rotation to match your specific model 
+                    Note: Using crossOrigin for external assets 
+                -->
+                <a-entity 
+                    gltf-model="#dumpster-model" 
+                    position="0 0 0"
+                    rotation="0 0 0"
+                    scale="0.5 0.5 0.5">
+                </a-entity>
                 
-                <!-- Flicker Light -->
-                <a-light type="point" color="#ff6600" intensity="2" distance="3"
-                         animation="property: intensity; from: 1.5; to: 2.5; dir: alternate; dur: 100; loop: true">
+                <!-- THE FIRE SYSTEM (Positioned inside the model) -->
+                <a-entity id="fire-container" position="0 0.2 0" fire-system></a-entity>
+                
+                <!-- Dynamic Fire Glow -->
+                <a-light type="point" color="#ff6600" intensity="2" distance="2"
+                         animation="property: intensity; from: 1; to: 2.5; dir: alternate; dur: 120; loop: true">
                 </a-light>
             </a-entity>
 
@@ -68,11 +82,11 @@
     </a-scene>
 
     <script>
-        // Custom A-Frame component for the fire particles
+        // Enhanced Fire System for GLB integration
         AFRAME.registerComponent('fire-system', {
             init: function () {
                 this.particles = [];
-                this.particleCount = 40;
+                this.particleCount = 35;
                 
                 for (let i = 0; i < this.particleCount; i++) {
                     this.createParticle();
@@ -82,16 +96,14 @@
             createParticle: function () {
                 const p = document.createElement('a-entity');
                 
-                // Randomize flame start properties
-                const size = Math.random() * 0.4 + 0.2;
+                const size = Math.random() * 0.25 + 0.15;
                 p.setAttribute('geometry', {
                     primitive: 'plane',
                     width: size,
                     height: size
                 });
 
-                // Fire colors: Yellow to Red
-                const colors = ['#ffcc00', '#ff6600', '#ff3300', '#e67e22'];
+                const colors = ['#ffcc00', '#ff8800', '#ff3300', '#ff5500'];
                 const color = colors[Math.floor(Math.random() * colors.length)];
                 
                 p.setAttribute('material', {
@@ -99,20 +111,20 @@
                     transparent: true,
                     opacity: 0.8,
                     shader: 'flat',
-                    side: 'double'
+                    side: 'double',
+                    blending: 'additive' // Better fire look
                 });
 
-                // Initial position (randomized inside the dumpster)
-                const x = (Math.random() - 0.5) * 1.5;
-                const z = (Math.random() - 0.5) * 1.0;
+                // Tighter spread to fit inside a model
+                const x = (Math.random() - 0.5) * 0.4;
+                const z = (Math.random() - 0.5) * 0.4;
                 p.setAttribute('position', { x: x, y: 0, z: z });
                 
-                // Save custom data for animation logic
                 this.particles.push({
                     el: p,
-                    speed: Math.random() * 0.02 + 0.01,
+                    speed: Math.random() * 0.015 + 0.005,
                     life: Math.random(),
-                    drift: (Math.random() - 0.5) * 0.01
+                    drift: (Math.random() - 0.5) * 0.005
                 });
 
                 this.el.appendChild(p);
@@ -122,27 +134,23 @@
                 this.particles.forEach(p => {
                     let pos = p.el.getAttribute('position');
                     
-                    // Move up
                     pos.y += p.speed;
                     pos.x += p.drift;
                     
-                    // Fade out
-                    p.life -= 0.015;
+                    p.life -= 0.02;
                     p.el.setAttribute('material', 'opacity', p.life);
                     
-                    // Reset particle when "dead" or too high
-                    if (p.life <= 0 || pos.y > 1.5) {
+                    if (p.life <= 0 || pos.y > 0.8) {
                         pos.y = 0;
-                        pos.x = (Math.random() - 0.5) * 1.5;
-                        pos.z = (Math.random() - 0.5) * 1.0;
+                        pos.x = (Math.random() - 0.5) * 0.4;
+                        pos.z = (Math.random() - 0.5) * 0.4;
                         p.life = 1.0;
                     }
                     
-                    // Billboard effect (always face camera)
-                    // In AR.js, the camera is at (0,0,0) essentially, but A-Frame handles the world space.
-                    // For simplicity, we just keep them slightly rotated or use a shader. 
-                    // Here we'll just let them be 3D planes for that "paper fire" look.
                     p.el.setAttribute('position', pos);
+                    
+                    // Simple Billboarding: Face the camera (located at 0,0,0 in marker space)
+                    p.el.object3D.lookAt(0, pos.y, 0);
                 });
             }
         });
