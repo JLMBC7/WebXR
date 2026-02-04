@@ -91,16 +91,19 @@
         <p class="launch-text">Tap to open camera and place model</p>
     </div>
 
+    <!-- 
+        Updated src to point to the raw GitHub URL for DirtyDumpster.glb
+    -->
     <model-viewer 
         id="ar-element"
-        src="https://modelviewer.dev/shared-assets/models/Astronaut.glb" 
+        src="https://raw.githubusercontent.com/JLMBC7/WebXR/a7b59956486303c358bbb380bcaa992c8f084910/DirtyDumpster.glb" 
         ar 
         ar-modes="webxr scene-viewer quick-look" 
         camera-controls 
         touch-action="pan-y"
         shadow-intensity="1" 
         auto-rotate
-        alt="A clickable 3D model for AR">
+        alt="A clickable 3D Dirty Dumpster model for AR">
         
         <!-- Custom AR button is hidden because we trigger it via script -->
         <button slot="ar-button" id="ar-button" style="display: none;"></button>
