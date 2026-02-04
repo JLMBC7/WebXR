@@ -49,9 +49,6 @@
             font-weight: bold;
             background: #f39c12;
         }
-        .error-badge {
-            background: #e74c3c;
-        }
         .success-badge {
             background: #27ae60;
         }
@@ -75,70 +72,65 @@
         const statusIcon = document.getElementById("status-icon");
         const engine = new BABYLON.Engine(canvas, true);
 
+        // Raw URL for the GLB model to avoid CORS and GitHub UI wrappers
+        const DUMPSTER_MODEL_URL = "https://raw.githubusercontent.com/JLMBC7/WebXR/73d43764a17823e0f1a163457d84ea93d0a953f4/DirtyDumpster.glb";
+
         const createScene = async function () {
             const scene = new BABYLON.Scene(engine);
             let isARMode = false;
 
-            // --- Lighting ---
+            // Lighting
             const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            light.intensity = 0.5;
+            light.intensity = 0.7;
 
             const fireLight = new BABYLON.PointLight("fireLight", new BABYLON.Vector3(0, 0, 0), scene);
             fireLight.diffuse = new BABYLON.Color3(1, 0.4, 0.1);
             fireLight.intensity = 0; 
 
-            // --- Environment Setup ---
-            const reticle = BABYLON.MeshBuilder.CreateTorus("reticle", { diameter: 0.15, thickness: 0.03 }, scene);
+            // Placement Reticle
+            const reticle = BABYLON.MeshBuilder.CreateTorus("reticle", { diameter: 0.2, thickness: 0.02 }, scene);
             reticle.isVisible = false;
             const reticleMat = new BABYLON.StandardMaterial("reticleMat", scene);
-            reticleMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
             reticleMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
             reticle.material = reticleMat;
 
             // Ground for non-AR fallback
-            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 10, height: 10}, scene);
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
             ground.isVisible = false;
+            const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+            groundMat.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.15);
+            ground.material = groundMat;
 
-            // --- Fire Particle System ---
-            const fireSystem = new BABYLON.ParticleSystem("fire", 1000, scene);
+            // Fire Particle System
+            const fireSystem = new BABYLON.ParticleSystem("fire", 2000, scene);
             fireSystem.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleUtils/Fire/Fire_Sheet.png", scene);
-            
             fireSystem.isAnimationSheetEnabled = true;
             fireSystem.startSpriteCellID = 0;
             fireSystem.endSpriteCellID = 31;
             fireSystem.spriteCellWidth = 128;
             fireSystem.spriteCellHeight = 128;
             fireSystem.spriteCellChangeSpeed = 2;
-
-            fireSystem.minSize = 0.2;
-            fireSystem.maxSize = 0.5;
+            fireSystem.minSize = 0.3;
+            fireSystem.maxSize = 0.6;
             fireSystem.minLifeTime = 0.5;
-            fireSystem.maxLifeTime = 1.0;
-            fireSystem.emitRate = 40;
-            
+            fireSystem.maxLifeTime = 1.2;
+            fireSystem.emitRate = 60;
             fireSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
-            fireSystem.gravity = new BABYLON.Vector3(0, 2, 0);
-            fireSystem.direction1 = new BABYLON.Vector3(-0.5, 1, -0.5);
-            fireSystem.direction2 = new BABYLON.Vector3(0.5, 1, 0.5);
-            
+            fireSystem.gravity = new BABYLON.Vector3(0, 3, 0);
+            fireSystem.direction1 = new BABYLON.Vector3(-0.2, 1, -0.2);
+            fireSystem.direction2 = new BABYLON.Vector3(0.2, 1, 0.2);
             fireSystem.color1 = new BABYLON.Color4(1, 0.8, 0.2, 1);
             fireSystem.color2 = new BABYLON.Color4(1, 0.4, 0, 1);
-            fireSystem.colorDead = new BABYLON.Color4(0.2, 0, 0, 0);
+            fireSystem.colorDead = new BABYLON.Color4(0.1, 0, 0, 0);
 
-            // Variables for placement
-            let dumpster = null;
             let placed = false;
 
-            // --- WebXR Implementation with Fallback ---
+            // Attempt WebXR AR
             try {
                 const supported = await BABYLON.WebXRSessionManager.IsSessionSupportedAsync("immersive-ar");
-                
                 if (supported) {
                     const xr = await scene.createDefaultXRExperienceAsync({
-                        uiOptions: {
-                            sessionMode: "immersive-ar",
-                            referenceSpaceType: "local-floor"
-                        }
+                        uiOptions: { sessionMode: "immersive-ar", referenceSpaceType: "local-floor" }
                     });
 
                     if (xr.baseExperience) {
@@ -156,112 +148,87 @@
                         });
 
                         xr.baseExperience.onStateChangedObservable.add((state) => {
-                            switch(state) {
-                                case BABYLON.WebXRState.ENTERING_XR:
-                                    statusText.innerText = "Entering AR...";
-                                    break;
-                                case BABYLON.WebXRState.IN_XR:
-                                    statusIcon.innerText = "AR ACTIVE";
-                                    statusText.innerText = "Scan the floor. Tap the white ring to place the dumpster.";
-                                    break;
-                                case BABYLON.WebXRState.EXITING_XR:
-                                    statusText.innerText = "Exited AR.";
-                                    statusIcon.innerText = "READY";
-                                    break;
+                            if (state === BABYLON.WebXRState.IN_XR) {
+                                statusIcon.innerText = "AR ACTIVE";
+                                statusText.innerText = "Scan floor, then tap to place your dumpster.";
                             }
                         });
                     }
                 } else {
-                    throw new Error("WebXR AR not supported");
+                    setupFallbackMode(scene);
                 }
             } catch (e) {
-                console.warn("XR Not available, using 3D fallback mode:", e.message);
                 setupFallbackMode(scene);
             }
 
-            function setupFallbackMode(scene) {
+            function setupFallbackMode(s) {
                 isARMode = false;
-                statusText.innerText = "AR not supported. Running in 3D Preview mode. Click the floor to place the dumpster.";
+                statusText.innerText = "AR Unavailable. Using 3D preview. Click ground to place.";
                 statusIcon.innerText = "PREVIEW MODE";
                 statusIcon.classList.add("success-badge");
 
-                // Standard Camera
-                const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 5, BABYLON.Vector3.Zero(), scene);
+                const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 4, BABYLON.Vector3.Zero(), s);
                 camera.attachControl(canvas, true);
-                camera.lowerRadiusLimit = 2;
-                camera.upperRadiusLimit = 15;
-
-                // Show ground so user can click somewhere
                 ground.isVisible = true;
-                const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
-                groundMat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
-                ground.material = groundMat;
 
-                // Simple raycast for placement in non-AR
-                scene.onPointerMove = () => {
+                s.onPointerMove = () => {
                     if (placed) return;
-                    const pickInfo = scene.pick(scene.pointerX, scene.pointerY, (mesh) => mesh === ground);
-                    if (pickInfo.hit) {
+                    const pick = s.pick(s.pointerX, s.pointerY, (m) => m === ground);
+                    if (pick.hit) {
                         reticle.isVisible = true;
-                        reticle.position.copyFrom(pickInfo.pickedPoint);
-                    } else {
-                        reticle.isVisible = false;
+                        reticle.position.copyFrom(pick.pickedPoint);
                     }
                 };
             }
 
-            // Universal pointer handler
             scene.onPointerDown = (evt) => {
                 if (reticle.isVisible && !placed) {
-                    placeDumpster(reticle.position);
+                    placeDumpster(reticle.position.clone());
                 }
             };
 
             async function placeDumpster(position) {
                 placed = true;
                 reticle.isVisible = false;
-                statusText.innerText = "Dumpster ignited! 🔥";
-                if (statusIcon.innerText === "AR ACTIVE") statusIcon.innerText = "FIRE ACTIVE";
+                statusText.innerText = "Igniting dumpster...";
 
-                dumpster = BABYLON.MeshBuilder.CreateBox("dumpster", { width: 0.8, height: 0.5, depth: 0.6 }, scene);
-                dumpster.position.copyFrom(position);
-                dumpster.position.y += 0.25;
+                try {
+                    const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", DUMPSTER_MODEL_URL, scene);
+                    const root = result.meshes[0];
+                    root.position.copyFrom(position);
+                    
+                    // Scale adjustment if needed (models from different sources vary)
+                    root.scaling = new BABYLON.Vector3(0.5, 0.5, 0.5);
 
-                const dumpsterMat = new BABYLON.StandardMaterial("dumpMat", scene);
-                dumpsterMat.diffuseColor = new BABYLON.Color3(0.1, 0.3, 0.1); 
-                dumpster.material = dumpsterMat;
+                    // Setup Fire
+                    fireSystem.emitter = root;
+                    fireSystem.minEmitBox = new BABYLON.Vector3(-0.4, 0.4, -0.3);
+                    fireSystem.maxEmitBox = new BABYLON.Vector3(0.4, 0.5, 0.3);
+                    fireSystem.start();
 
-                const lid = BABYLON.MeshBuilder.CreateBox("lid", { width: 0.8, height: 0.05, depth: 0.6 }, scene);
-                lid.parent = dumpster;
-                lid.position.y = 0.25;
-                lid.rotation.x = -Math.PI / 4;
+                    fireLight.position.copyFrom(position);
+                    fireLight.position.y += 0.8;
+                    fireLight.intensity = 1.5;
 
-                fireSystem.emitter = dumpster;
-                fireSystem.minEmitBox = new BABYLON.Vector3(-0.3, 0.1, -0.2);
-                fireSystem.maxEmitBox = new BABYLON.Vector3(0.3, 0.2, 0.2);
-                fireSystem.start();
+                    scene.registerBeforeRender(() => {
+                        fireLight.intensity = 1.2 + Math.random() * 0.8;
+                    });
 
-                fireLight.position.copyFrom(position);
-                fireLight.position.y += 0.6;
-                fireLight.intensity = 1.5;
-
-                scene.registerBeforeRender(() => {
-                    fireLight.intensity = 1.2 + Math.random() * 0.6;
-                });
+                    statusText.innerText = "Dumpster Fire Live! 🔥";
+                } catch (err) {
+                    console.error("Failed to load model:", err);
+                    statusText.innerText = "Error loading 3D model.";
+                }
             }
 
             return scene;
         };
 
         createScene().then((scene) => {
-            engine.runRenderLoop(() => {
-                scene.render();
-            });
+            engine.runRenderLoop(() => scene.render());
         });
 
-        window.addEventListener("resize", () => {
-            engine.resize();
-        });
+        window.addEventListener("resize", () => engine.resize());
     </script>
 </body>
 </html>
