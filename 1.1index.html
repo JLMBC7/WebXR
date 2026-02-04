@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clickable AR Experience</title>
+    <!-- Import the <model-viewer> component from Google -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4285f4;
+        }
+        body { 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000; /* Darker background for camera transition */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        
+        /* Full-screen viewer */
+        model-viewer {
+            width: 100vw;
+            height: 100vh;
+            --poster-color: transparent;
+        }
+
+        /* Full-screen Launch Overlay */
+        #launch-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            transition: opacity 0.5s ease;
+        }
+
+        .launch-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 20px rgba(66, 133, 244, 0.4);
+        }
+
+        .launch-text {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.9);
+            color: black;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 200;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Overlay to capture the user gesture required to launch AR -->
+    <div id="launch-overlay">
+        <button class="launch-btn">Start AR Experience</button>
+        <p class="launch-text">Tap to open camera and place model</p>
+    </div>
+
+    <!-- 
+        Updated src to point to the raw GitHub URL for DirtyDumpster.glb
+    -->
+    <model-viewer 
+        id="ar-element"
+        src="https://raw.githubusercontent.com/JLMBC7/WebXR/a7b59956486303c358bbb380bcaa992c8f084910/DirtyDumpster.glb" 
+        ar 
+        ar-modes="webxr scene-viewer quick-look" 
+        camera-controls 
+        touch-action="pan-y"
+        shadow-intensity="1" 
+        auto-rotate
+        alt="A clickable 3D Dirty Dumpster model for AR">
+        
+        <!-- Custom AR button is hidden because we trigger it via script -->
+        <button slot="ar-button" id="ar-button" style="display: none;"></button>
+
+    </model-viewer>
+
+    <div id="toast" class="toast">Redirecting...</div>
+
+    <script>
+        const modelViewer = document.querySelector("#ar-element");
+        const launchOverlay = document.getElementById('launch-overlay');
+        const toast = document.getElementById('toast');
+        const destinationUrl = "https://www.google.com";
+
+        // 1. Launch AR directly on overlay click
+        launchOverlay.addEventListener('click', () => {
+            if (modelViewer.canActivateAR) {
+                modelViewer.activateAR();
+                launchOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    launchOverlay.style.display = 'none';
+                }, 500);
+            } else {
+                // Fallback for desktop or non-AR browsers
+                launchOverlay.style.opacity = '0';
+                setTimeout(() => { launchOverlay.style.display = 'none'; }, 500);
+            }
+        });
+
+        // 2. Click logic for the model (Works in WebXR)
+        modelViewer.addEventListener('click', (event) => {
+            const hit = modelViewer.positionAndNormalFromPoint(event.clientX, event.clientY);
+            if (hit) {
+                showToast("Opening Link...");
+                setTimeout(() => {
+                    window.location.href = destinationUrl;
+                }, 800);
+            }
+        });
+
+        function showToast(text) {
+            toast.textContent = text;
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+        }
+
+        // Error handling
+        modelViewer.addEventListener('error', (error) => {
+            console.error("Error loading 3D model:", error);
+        });
+    </script>
+</body>
+</html>
