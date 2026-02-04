@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Variant Launch + Babylon.js WebXR Dumpster</title>
+    <title>AR Dumpster Placement</title>
     
     <!-- 1. VARIANT LAUNCH SDK -->
     <script src="https://launchar.app/sdk/v1?key=K3ApwHjOT76Mh2KryCttLoMOgPY6dOFK&redirect=true"></script>
@@ -11,77 +11,52 @@
     <!-- 2. BABYLON.JS CORE & LOADERS -->
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
 
     <style>
         body, html {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background-color: #000;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            overflow: hidden; background-color: #000;
+            font-family: -apple-system, system-ui, sans-serif;
         }
 
-        #renderCanvas {
-            width: 100%;
-            height: 100%;
-            touch-action: none;
-        }
+        #renderCanvas { width: 100%; height: 100%; touch-action: none; }
 
         #ui-overlay {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            right: 20px;
-            pointer-events: none;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            position: absolute; top: 20px; left: 0; right: 0;
+            pointer-events: none; z-index: 10;
+            display: flex; flex-direction: column; align-items: center;
         }
 
         .status-badge {
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-size: 14px;
-            backdrop-filter: blur(5px);
+            background: rgba(0, 0, 0, 0.8);
+            color: white; padding: 12px 24px; border-radius: 30px;
+            font-size: 14px; backdrop-filter: blur(10px);
             border: 1px solid rgba(255,255,255,0.2);
-            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
             text-align: center;
         }
 
-        .error-badge {
-            background: rgba(220, 38, 38, 0.9);
-            border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        #ios-prompt {
-            display: none;
-            position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #fff;
-            color: #000;
-            padding: 15px 30px;
-            border-radius: 12px;
-            font-weight: bold;
-            text-decoration: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            pointer-events: auto;
+        /* Prominent Button to trigger session */
+        .ar-button {
+            display: none; position: absolute; bottom: 50px;
+            left: 50%; transform: translateX(-50%);
+            background: #007AFF; color: #fff;
+            padding: 20px 40px; border-radius: 50px;
+            font-weight: bold; text-decoration: none;
+            font-size: 18px; box-shadow: 0 10px 25px rgba(0,122,255,0.4);
+            pointer-events: auto; z-index: 100;
+            border: none; cursor: pointer;
         }
     </style>
 </head>
 <body>
     <div id="ui-overlay">
-        <div id="status" class="status-badge">Loading Dumpster Model...</div>
+        <div id="status" class="status-badge">Detecting AR Capabilities...</div>
     </div>
 
-    <a id="ios-prompt" href="#">✨ Tap to Start AR</a>
+    <!-- UI Buttons for different platforms -->
+    <a id="ios-prompt" class="ar-button" href="#">START AR (iOS)</a>
+    <button id="android-prompt" class="ar-button">ENTER AR</button>
     
     <canvas id="renderCanvas"></canvas>
 
@@ -89,73 +64,70 @@
         const canvas = document.getElementById("renderCanvas");
         const statusEl = document.getElementById("status");
         const iosPrompt = document.getElementById("ios-prompt");
+        const androidPrompt = document.getElementById("android-prompt");
         
-        let engine;
-        let scene;
-        let xrHelper;
-        let hitTestResult;
-        let dumpsterRoot;
-
+        let engine, scene, xrHelper, hitTestResult, dumpsterRoot;
         const DUMPSTER_URL = "https://raw.githubusercontent.com/JLMBC7/WebXR/e76019e5a71c79b4f9dd8f3c72a40e64feec1cdc/DirtyDumpster.glb";
 
         const initApp = async () => {
             engine = new BABYLON.Engine(canvas, true);
             scene = new BABYLON.Scene(engine);
 
-            // Setup Camera & Light
-            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 4, new BABYLON.Vector3(0, 0.5, 0), scene);
-            camera.attachControl(canvas, true);
-            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            light.intensity = 1.0;
+            // Default Camera to prevent render error
+            const camera = new BABYLON.FreeCamera("defaultCamera", new BABYLON.Vector3(0, 5, -10), scene);
+            camera.setTarget(BABYLON.Vector3.Zero());
+            
+            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-            // Load the Dumpster Model
             try {
                 const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", DUMPSTER_URL, scene);
                 dumpsterRoot = result.meshes[0];
-                dumpsterRoot.name = "dumpsterMaster";
-                
-                // Scale it to a reasonable size (adjust based on original model scale)
                 dumpsterRoot.scaling = new BABYLON.Vector3(0.5, 0.5, 0.5);
-                dumpsterRoot.position.y = 0;
-                
-                statusEl.innerText = "Model Loaded";
+                dumpsterRoot.setEnabled(false); 
+                statusEl.innerText = "Dumpster Loaded. Checking AR...";
             } catch (err) {
-                console.error("Failed to load model:", err);
-                statusEl.innerText = "Error loading 3D model";
-                statusEl.classList.add('error-badge');
+                statusEl.innerText = "Error loading model. Check connection.";
             }
 
-            // Variant Launch Logic
-            window.addEventListener('vlaunch-initialized', (event) => {
-                const { launchRequired, launchUrl } = event.detail;
+            // --- VARIANT LAUNCH HANDLER ---
+            const handleVLaunch = (e) => {
+                const { launchRequired, launchUrl } = e.detail;
                 if (launchRequired) {
-                    statusEl.innerText = "iOS Detected: Launch Required";
+                    // iOS logic
+                    statusEl.innerText = "iOS Detected. Tap button below.";
                     iosPrompt.style.display = "block";
                     iosPrompt.href = launchUrl;
                 } else {
-                    statusEl.innerText = "WebXR Ready";
-                    setupWebXR();
+                    // Android / Native logic
+                    checkNativeWebXR();
                 }
-            });
+            };
 
-            window.addEventListener('vlaunch-error', (event) => {
-                statusEl.classList.add('error-badge');
-                statusEl.innerText = "SDK Error: " + event.detail.message;
-            });
+            window.addEventListener('vlaunch-initialized', handleVLaunch);
+            
+            // Fallback: If event fired before listener was attached
+            if (window.VLaunch && window.VLaunch.isInitialized) {
+                handleVLaunch({ detail: window.VLaunch });
+            }
 
-            document.addEventListener('vlaunch-ar-tracking', (event) => {
-                const state = event.detail.state;
-                if (state.includes('limited')) {
-                    statusEl.innerText = "Move phone slowly to scan floor...";
-                } else if (state === 'normal') {
-                    statusEl.innerText = "Surface Detected!";
-                }
+            engine.runRenderLoop(() => {
+                if (scene.activeCamera) scene.render();
             });
+        };
 
-            engine.runRenderLoop(() => scene.render());
+        const checkNativeWebXR = async () => {
+            const supported = await BABYLON.WebXRSessionManager.IsSessionSupportedAsync("immersive-ar");
+            if (supported) {
+                statusEl.innerText = "AR Supported. Click to start.";
+                androidPrompt.style.display = "block";
+                androidPrompt.onclick = () => setupWebXR();
+            } else {
+                statusEl.innerText = "WebXR AR not supported on this browser.";
+            }
         };
 
         const setupWebXR = async () => {
+            androidPrompt.style.display = "none";
             try {
                 xrHelper = await scene.createDefaultXRExperienceAsync({
                     uiOptions: {
@@ -168,13 +140,14 @@
                 const fm = xrHelper.baseExperience.featuresManager;
                 const xrHitTest = fm.enableFeature(BABYLON.WebXRFeatureName.HIT_TEST, "latest");
                 
+                // Placement Reticle
                 const reticle = BABYLON.MeshBuilder.CreateTorus("reticle", {
-                    diameter: 0.2,
-                    thickness: 0.02,
-                    tessellation: 32
+                    diameter: 0.25, thickness: 0.03
                 }, scene);
                 reticle.isVisible = false;
-                reticle.rotationQuaternion = new BABYLON.Quaternion();
+                const reticleMat = new BABYLON.StandardMaterial("reticleMat", scene);
+                reticleMat.emissiveColor = new BABYLON.Color3(0, 1, 0);
+                reticle.material = reticleMat;
 
                 xrHitTest.onHitTestResultObservable.add((results) => {
                     if (results.length) {
@@ -183,40 +156,28 @@
                         hitTestResult.transformationMatrix.decompose(undefined, reticle.rotationQuaternion, reticle.position);
                     } else {
                         reticle.isVisible = false;
-                        hitTestResult = null;
                     }
                 });
 
                 xrHelper.baseExperience.sessionManager.onXRSessionInit.add(() => {
-                    statusEl.innerText = "AR Session Active";
-                    // Hide the master dumpster when entering XR to wait for placement
-                    if (dumpsterRoot) dumpsterRoot.isVisible = false;
+                    statusEl.innerText = "Move phone to scan for a floor";
                 });
 
-                scene.onPointerDown = (evt, pickInfo) => {
+                scene.onPointerDown = () => {
                     if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR && hitTestResult && dumpsterRoot) {
-                        // Clone the model for placement
-                        const placedDumpster = dumpsterRoot.instantiateHierarchy();
-                        hitTestResult.transformationMatrix.decompose(undefined, placedDumpster.rotationQuaternion, placedDumpster.position);
-                        
-                        // Spawn animation
-                        placedDumpster.scaling = new BABYLON.Vector3(0, 0, 0);
-                        BABYLON.Animation.CreateAndStartAnimation("spawn", placedDumpster, "scaling", 30, 15, 
-                            new BABYLON.Vector3(0, 0, 0), 
-                            new BABYLON.Vector3(0.5, 0.5, 0.5), 
-                            BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
-                        );
+                        const placed = dumpsterRoot.instantiateHierarchy();
+                        placed.setEnabled(true);
+                        hitTestResult.transformationMatrix.decompose(undefined, placed.rotationQuaternion, placed.position);
+                        statusEl.innerText = "Dumpster Placed!";
                     }
                 };
-
             } catch (e) {
-                console.error("XR Initialization failed", e);
-                statusEl.innerText = "WebXR not supported.";
+                statusEl.innerText = "Failed to start AR session.";
             }
         };
 
-        window.addEventListener("resize", () => engine?.resize());
         window.onload = initApp;
+        window.addEventListener("resize", () => engine?.resize());
     </script>
 </body>
 </html>
