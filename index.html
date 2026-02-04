@@ -1,50 +1,222 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>WebXR Dumpster Fire</title>
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-particle-system-component@1.1.3/dist/aframe-particle-system-component.min.js"></script>
-    <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
-  </head>
-  <body>
-    <a-scene xr-mode-ui="enabled: true" shadow="type: pcfsoft">
-      
-      <a-assets>
-        <a-asset-item id="dumpster" src="https://raw.githubusercontent.com/JLMBC7/WebXR/80b851129898cfd8b6e8c65f7ceb7fce50df60ca/DirtyDumpster.glb"></a-asset-item>
-      </a-assets>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Variant Launch + Babylon.js WebXR Dumpster</title>
+    
+    <!-- 1. VARIANT LAUNCH SDK -->
+    <script src="https://launchar.app/sdk/v1?key=K3ApwHjOT76Mh2KryCttLoMOgPY6dOFK&redirect=true"></script>
 
-      <a-entity environment="preset: urban; dressingAmount: 0; lighting: point"></a-entity>
+    <!-- 2. BABYLON.JS CORE & LOADERS -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
 
-      <a-entity 
-        gltf-model="#dumpster" 
-        position="0 0 -3" 
-        scale="1.2 1.2 1.2"
-        shadow="cast: true; receive: true">
+    <style>
+        body, html {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .status-badge {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .error-badge {
+            background: rgba(220, 38, 38, 0.9);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        #ios-prompt {
+            display: none;
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            color: #000;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-weight: bold;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-overlay">
+        <div id="status" class="status-badge">Loading Dumpster Model...</div>
+    </div>
+
+    <a id="ios-prompt" href="#">✨ Tap to Start AR</a>
+    
+    <canvas id="renderCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("renderCanvas");
+        const statusEl = document.getElementById("status");
+        const iosPrompt = document.getElementById("ios-prompt");
         
-        <a-entity 
-          position="0 0.4 0" 
-          particle-system="preset: flame; color: #ff4400,#ffcc00; size: 0.6; particleCount: 600; velocityValue: 0 2 0; velocitySpread: 0.5 0 0.5">
-        </a-entity>
+        let engine;
+        let scene;
+        let xrHelper;
+        let hitTestResult;
+        let dumpsterRoot;
 
-        <a-entity 
-          position="0 1.5 0" 
-          particle-system="preset: dust; color: #333333; size: 1.5; particleCount: 150; velocityValue: 0 1 0; opacity: 0.4">
-        </a-entity>
+        const DUMPSTER_URL = "https://raw.githubusercontent.com/JLMBC7/WebXR/e76019e5a71c79b4f9dd8f3c72a40e64feec1cdc/DirtyDumpster.glb";
 
-        <a-entity 
-          light="type: point; color: #ff9900; intensity: 2; distance: 8" 
-          position="0 1 0"
-          animation="property: light.intensity; from: 1.5; to: 2.5; dur: 150; dir: alternate; loop: true; easing: easeInOutSine">
-        </a-entity>
-      </a-entity>
+        const initApp = async () => {
+            engine = new BABYLON.Engine(canvas, true);
+            scene = new BABYLON.Scene(engine);
 
-      <a-entity id="rig" position="0 0 0">
-        <a-camera look-controls wasd-controls position="0 1.6 0"></a-camera>
-        <a-entity oculus-touch-controls="hand: left"></a-entity>
-        <a-entity oculus-touch-controls="hand: right"></a-entity>
-      </a-entity>
+            // Setup Camera & Light
+            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 4, new BABYLON.Vector3(0, 0.5, 0), scene);
+            camera.attachControl(canvas, true);
+            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 1.0;
 
-    </a-scene>
-  </body>
+            // Load the Dumpster Model
+            try {
+                const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", DUMPSTER_URL, scene);
+                dumpsterRoot = result.meshes[0];
+                dumpsterRoot.name = "dumpsterMaster";
+                
+                // Scale it to a reasonable size (adjust based on original model scale)
+                dumpsterRoot.scaling = new BABYLON.Vector3(0.5, 0.5, 0.5);
+                dumpsterRoot.position.y = 0;
+                
+                statusEl.innerText = "Model Loaded";
+            } catch (err) {
+                console.error("Failed to load model:", err);
+                statusEl.innerText = "Error loading 3D model";
+                statusEl.classList.add('error-badge');
+            }
+
+            // Variant Launch Logic
+            window.addEventListener('vlaunch-initialized', (event) => {
+                const { launchRequired, launchUrl } = event.detail;
+                if (launchRequired) {
+                    statusEl.innerText = "iOS Detected: Launch Required";
+                    iosPrompt.style.display = "block";
+                    iosPrompt.href = launchUrl;
+                } else {
+                    statusEl.innerText = "WebXR Ready";
+                    setupWebXR();
+                }
+            });
+
+            window.addEventListener('vlaunch-error', (event) => {
+                statusEl.classList.add('error-badge');
+                statusEl.innerText = "SDK Error: " + event.detail.message;
+            });
+
+            document.addEventListener('vlaunch-ar-tracking', (event) => {
+                const state = event.detail.state;
+                if (state.includes('limited')) {
+                    statusEl.innerText = "Move phone slowly to scan floor...";
+                } else if (state === 'normal') {
+                    statusEl.innerText = "Surface Detected!";
+                }
+            });
+
+            engine.runRenderLoop(() => scene.render());
+        };
+
+        const setupWebXR = async () => {
+            try {
+                xrHelper = await scene.createDefaultXRExperienceAsync({
+                    uiOptions: {
+                        sessionMode: "immersive-ar",
+                        referenceSpaceType: "local-floor"
+                    },
+                    optionalFeatures: ["hit-test", "anchors"]
+                });
+
+                const fm = xrHelper.baseExperience.featuresManager;
+                const xrHitTest = fm.enableFeature(BABYLON.WebXRFeatureName.HIT_TEST, "latest");
+                
+                const reticle = BABYLON.MeshBuilder.CreateTorus("reticle", {
+                    diameter: 0.2,
+                    thickness: 0.02,
+                    tessellation: 32
+                }, scene);
+                reticle.isVisible = false;
+                reticle.rotationQuaternion = new BABYLON.Quaternion();
+
+                xrHitTest.onHitTestResultObservable.add((results) => {
+                    if (results.length) {
+                        reticle.isVisible = true;
+                        hitTestResult = results[0];
+                        hitTestResult.transformationMatrix.decompose(undefined, reticle.rotationQuaternion, reticle.position);
+                    } else {
+                        reticle.isVisible = false;
+                        hitTestResult = null;
+                    }
+                });
+
+                xrHelper.baseExperience.sessionManager.onXRSessionInit.add(() => {
+                    statusEl.innerText = "AR Session Active";
+                    // Hide the master dumpster when entering XR to wait for placement
+                    if (dumpsterRoot) dumpsterRoot.isVisible = false;
+                });
+
+                scene.onPointerDown = (evt, pickInfo) => {
+                    if (xrHelper.baseExperience.state === BABYLON.WebXRState.IN_XR && hitTestResult && dumpsterRoot) {
+                        // Clone the model for placement
+                        const placedDumpster = dumpsterRoot.instantiateHierarchy();
+                        hitTestResult.transformationMatrix.decompose(undefined, placedDumpster.rotationQuaternion, placedDumpster.position);
+                        
+                        // Spawn animation
+                        placedDumpster.scaling = new BABYLON.Vector3(0, 0, 0);
+                        BABYLON.Animation.CreateAndStartAnimation("spawn", placedDumpster, "scaling", 30, 15, 
+                            new BABYLON.Vector3(0, 0, 0), 
+                            new BABYLON.Vector3(0.5, 0.5, 0.5), 
+                            BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
+                        );
+                    }
+                };
+
+            } catch (e) {
+                console.error("XR Initialization failed", e);
+                statusEl.innerText = "WebXR not supported.";
+            }
+        };
+
+        window.addEventListener("resize", () => engine?.resize());
+        window.onload = initApp;
+    </script>
+</body>
 </html>
