@@ -68,16 +68,25 @@
             z-index: 200;
         }
         
-        /* The fire-container needs to be relatively sized so it persists in AR */
+        /* Ensure the fire container stays visible and correctly transformed in AR */
         .fire-container {
-            width: 250px;
-            height: 250px;
+            width: 300px;
+            height: 300px;
             pointer-events: none;
             overflow: hidden;
             /* Clipping logic to keep fire inside the dumpster walls */
             mask-image: linear-gradient(to top, transparent 15%, black 35%);
             -webkit-mask-image: linear-gradient(to top, transparent 15%, black 35%);
-            transform: translate(-50%, -100%); /* Center the hotspot and grow upwards */
+            /* Position alignment for model-viewer hotspot system */
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translate(-50%, 0%);
+        }
+
+        /* Essential for AR visibility of hotspots */
+        #ar-element:not(.ar-ready) [slot="hotspot-fire"] {
+            display: block;
         }
     </style>
 </head>
@@ -98,8 +107,8 @@
         auto-rotate
         alt="A Dirty Dumpster with Procedural Volumetric Fire">
         
-        <!-- Fire Hotspot - Centered in the dumpster opening -->
-        <div slot="hotspot-fire" data-position="0m 0.45m 0m" data-normal="0m 1m 0m" data-visibility-attribute="visible">
+        <!-- Fire Hotspot - data-visibility-attribute set to empty to force persistence -->
+        <div slot="hotspot-fire" data-position="0m 0.45m 0m" data-normal="0m 1m 0m">
             <div class="fire-container">
                 <canvas id="fire-canvas" style="width: 100%; height: 100%;"></canvas>
             </div>
@@ -179,7 +188,7 @@
         // Initialize Three.js on the Hotspot Canvas
         const canvas = document.getElementById('fire-canvas');
         const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        renderer.setSize(256, 256); // Slightly smaller for better AR performance
+        renderer.setSize(512, 512); // Higher resolution for better clarity
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
@@ -194,7 +203,7 @@
             transparent: true,
             side: THREE.DoubleSide,
             depthWrite: false,
-            blending: THREE.AdditiveBlending // Helps fire pop in AR
+            blending: THREE.AdditiveBlending 
         });
 
         const fireGroup = new THREE.Group();
@@ -239,4 +248,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
