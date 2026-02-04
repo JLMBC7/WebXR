@@ -3,170 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Babylon.js Fire AR</title>
-    <!-- Babylon.js Core and Loaders -->
-    <script src="https://cdn.babylonjs.com/babylon.js"></script>
-    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <title>Clickable AR Fire Experience</title>
+    <!-- Import Three.js and Model Viewer -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     <style>
-        body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000; font-family: sans-serif; }
-        canvas { width: 100%; height: 100%; touch-action: none; outline: none; }
-        
-        #overlay {
+        :root { --primary-color: #4285f4; }
+        body { 
+            margin: 0; 
+            font-family: sans-serif;
+            background-color: #000; 
+            overflow: hidden;
+        }
+        model-viewer {
+            width: 100vw;
+            height: 100vh;
+        }
+        #launch-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 10;
             color: white;
-            cursor: pointer;
             text-align: center;
-            padding: 20px;
+            cursor: pointer;
+            transition: opacity 0.5s;
         }
-        .btn {
-            background: #4285f4;
+        .launch-btn {
+            background-color: var(--primary-color);
             color: white;
-            padding: 15px 30px;
-            border-radius: 30px;
-            font-size: 1.2rem;
-            font-weight: bold;
             border: none;
-            margin-bottom: 10px;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
         }
-        .error-msg {
-            color: #ff4444;
-            font-size: 0.9rem;
-            margin-top: 10px;
-            display: none;
+        .toast {
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.9);
+            color: black;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 200;
+        }
+        /* Clip the flames so they don't bleed out of the dumpster bottom */
+        .fire-container {
+            width: 512px;
+            height: 512px;
+            pointer-events: none;
+            overflow: hidden;
+            mask-image: linear-gradient(to top, transparent 10%, black 25%);
+            -webkit-mask-image: linear-gradient(to top, transparent 10%, black 25%);
         }
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <button class="btn" id="startBtn">Launch Experience</button>
-        <p id="instructionText">Tap to start (AR mode requires a compatible mobile device)</p>
-        <div id="error-msg" class="error-msg">WebXR AR not supported. Loading 3D viewer instead...</div>
+    <div id="launch-overlay">
+        <button class="launch-btn">Start Fire Experience</button>
+        <p>Tap to place the dumpster and see the flames</p>
     </div>
 
-    <canvas id="renderCanvas"></canvas>
+    <model-viewer 
+        id="ar-element"
+        src="https://raw.githubusercontent.com/JLMBC7/WebXR/a7b59956486303c358bbb380bcaa992c8f084910/DirtyDumpster.glb" 
+        ar 
+        ar-modes="webxr scene-viewer quick-look" 
+        camera-controls 
+        shadow-intensity="1" 
+        auto-rotate
+        alt="A Dirty Dumpster with Procedural Volumetric Fire">
+        
+        <!-- Fire Hotspot - Centered in the dumpster opening -->
+        <div slot="hotspot-fire" data-position="0m 0.45m 0m" data-normal="0m 1m 0m">
+            <div class="fire-container">
+                <canvas id="fire-canvas" style="width: 100%; height: 100%;"></canvas>
+            </div>
+        </div>
 
-    <script>
-        const canvas = document.getElementById("renderCanvas");
-        const engine = new BABYLON.Engine(canvas, true);
-        const destinationUrl = "https://www.google.com";
-        const modelUrl = "https://raw.githubusercontent.com/JLMBC7/WebXR/a7b59956486303c358bbb380bcaa992c8f084910/DirtyDumpster.glb";
+        <button slot="ar-button" style="display: none;"></button>
+    </model-viewer>
 
-        const createScene = async function () {
-            const scene = new BABYLON.Scene(engine);
-            
-            // Camera for non-AR viewing
-            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 5, new BABYLON.Vector3(0, 0.5, 0), scene);
-            camera.lowerRadiusLimit = 2;
-            camera.upperRadiusLimit = 10;
-            camera.attachControl(canvas, true);
-            
-            // Lighting
-            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            light.intensity = 0.7;
+    <div id="toast" class="toast">Opening Link...</div>
 
-            // Load the Dumpster
-            try {
-                const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", modelUrl, scene);
-                const dumpster = result.meshes[0];
-                dumpster.scaling = new BABYLON.Vector3(0.5, 0.5, 0.5);
-                dumpster.position = new BABYLON.Vector3(0, 0, 0);
-            } catch (err) {
-                console.error("Failed to load model:", err);
+    <script type="module">
+        import * as THREE from 'three';
+
+        // GLSL Shader for Procedural "Musgrave-style" Noise Fire
+        const vertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            uniform float time;
+            varying vec2 vUv;
+
+            // Fractal Noise (Multi-layered Simplex/Perlin approximation)
+            float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+            vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+            vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
+
+            float noise(vec3 p){
+                vec3 a = floor(p);
+                vec3 d = p - a;
+                d = d * d * (3.0 - 2.0 * d);
+                vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
+                vec4 k1 = perm(b.xyxy);
+                vec4 k2 = perm(k1.xyxy + b.zzww);
+                vec4 c = k2 + a.zzzz;
+                vec4 k3 = perm(c);
+                vec4 k4 = perm(c + 1.0);
+                vec4 o1 = fract(k3 * (1.0 / 41.0));
+                vec4 o2 = fract(k4 * (1.0 / 41.0));
+                vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+                vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+                return o4.y * d.y + o4.x * (1.0 - d.y);
             }
 
-            // FIRE PARTICLE SYSTEM
-            const fireSystem = new BABYLON.ParticleSystem("particles", 2000, scene);
-            fireSystem.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJS-Assets/master/Particles/Fire/Flare.png", scene);
-
-            // Emitter inside dumpster
-            fireSystem.emitter = new BABYLON.Vector3(0, 0.5, 0); 
-            fireSystem.minEmitBox = new BABYLON.Vector3(-0.3, 0, -0.2);
-            fireSystem.maxEmitBox = new BABYLON.Vector3(0.3, 0.1, 0.2);
-
-            fireSystem.color1 = new BABYLON.Color4(1, 0.5, 0, 1.0);
-            fireSystem.color2 = new BABYLON.Color4(1, 0.2, 0, 1.0);
-            fireSystem.colorDead = new BABYLON.Color4(0, 0, 0, 0.0);
-
-            fireSystem.minSize = 0.1;
-            fireSystem.maxSize = 0.5;
-            fireSystem.minLifeTime = 0.2;
-            fireSystem.maxLifeTime = 0.7;
-            fireSystem.emitRate = 600;
-            fireSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
-            fireSystem.gravity = new BABYLON.Vector3(0, 9.81, 0);
-            fireSystem.direction1 = new BABYLON.Vector3(-0.5, 2, -0.5);
-            fireSystem.direction2 = new BABYLON.Vector3(0.5, 2, 0.5);
-            fireSystem.minEmitPower = 1;
-            fireSystem.maxEmitPower = 3;
-            fireSystem.updateSpeed = 0.005;
-
-            fireSystem.start();
-
-            // Flickering Light
-            const fireLight = new BABYLON.PointLight("fireLight", new BABYLON.Vector3(0, 0.8, 0), scene);
-            fireLight.diffuse = new BABYLON.Color3(1, 0.4, 0);
-            fireLight.intensity = 1.5;
-
-            scene.registerBeforeRender(() => {
-                fireLight.intensity = 1.2 + Math.random() * 0.5;
-            });
-
-            // Interaction
-            scene.onPointerDown = (evt, pickResult) => {
-                if (pickResult.hit) {
-                    window.location.href = destinationUrl;
-                }
-            };
-
-            return scene;
-        };
-
-        (async function init() {
-            const scene = await createScene();
-
-            const startBtn = document.getElementById("startBtn");
-            const overlay = document.getElementById("overlay");
-            const errorMsg = document.getElementById("error-msg");
-
-            startBtn.addEventListener("click", async () => {
-                // Check if WebXR is supported
-                const isSupported = await BABYLON.WebXRSessionManager.IsSessionSupportedAsync('immersive-ar');
+            void main() {
+                vec2 uv = vUv;
                 
-                if (isSupported) {
-                    try {
-                        const xr = await scene.createDefaultXRExperienceAsync({
-                            uiOptions: { sessionMode: 'immersive-ar' }
-                        });
-                        overlay.style.display = "none";
-                    } catch (e) {
-                        console.error("XR Init Failed", e);
-                        overlay.style.display = "none";
-                    }
-                } else {
-                    // Fallback: Just hide overlay and show 3D scene
-                    errorMsg.style.display = "block";
-                    setTimeout(() => {
-                        overlay.style.display = "none";
-                    }, 2000);
-                }
-            });
+                // Animate flame upwards (Y-axis)
+                float t = time * 1.5;
+                vec3 noiseScale = vec3(uv * 4.0, t);
+                
+                // Musgrave/Fractal style noise accumulation
+                float n = noise(noiseScale);
+                n += 0.5 * noise(noiseScale * 2.1 + vec3(0.0, -t, 0.0));
+                n += 0.25 * noise(noiseScale * 4.4);
+                
+                // Shape the flame base and taper the top
+                float shape = 1.0 - abs(uv.x - 0.5) * 2.8;
+                shape *= smoothstep(0.0, 0.2, uv.y); // Fade bottom
+                shape *= (1.0 - uv.y); // Fade top
+                
+                // Fire gradient mapping
+                float fireIntensity = n * shape;
+                
+                vec3 colorLow = vec3(0.1, 0.0, 0.0);    // Dark Red
+                vec3 colorMid = vec3(1.0, 0.3, 0.0);    // Orange
+                vec3 colorHigh = vec3(1.0, 0.9, 0.4);   // Bright Core
+                
+                vec3 finalColor = mix(colorLow, colorMid, fireIntensity * 1.5);
+                finalColor = mix(finalColor, colorHigh, fireIntensity * fireIntensity * 2.0);
+                
+                // Flickering Alpha
+                float alpha = clamp(fireIntensity * 2.5, 0.0, 1.0);
+                
+                gl_FragColor = vec4(finalColor, alpha);
+            }
+        `;
 
-            engine.runRenderLoop(() => {
-                scene.render();
-            });
+        // Initialize Three.js on the Hotspot Canvas
+        const canvas = document.getElementById('fire-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.setSize(512, 512);
 
-            window.addEventListener("resize", () => {
-                engine.resize();
-            });
-        })();
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+        camera.position.set(0, 1.5, 5);
+        camera.lookAt(0, 1, 0);
+
+        const uniforms = { time: { value: 0.0 } };
+        const material = new THREE.ShaderMaterial({
+            uniforms,
+            vertexShader,
+            fragmentShader,
+            transparent: true,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+
+        // Use Intersecting Planes (Cross-Plane) for Volumetric Illusion
+        const fireGroup = new THREE.Group();
+        const planeGeo = new THREE.PlaneGeometry(3.5, 5.0);
+        
+        for (let i = 0; i < 3; i++) {
+            const plane = new THREE.Mesh(planeGeo, material);
+            plane.rotation.y = (Math.PI / 3) * i;
+            plane.position.y = 1.8;
+            fireGroup.add(plane);
+        }
+        scene.add(fireGroup);
+
+        function animate(t) {
+            const time = t / 1000;
+            uniforms.time.value = time;
+            
+            // Subtle rotation to enhance the volumetric feel
+            fireGroup.rotation.y = time * 0.1;
+            
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        requestAnimationFrame(animate);
+
+        // App Interaction Logic
+        const modelViewer = document.querySelector("#ar-element");
+        const launchOverlay = document.getElementById('launch-overlay');
+        const toast = document.getElementById('toast');
+
+        launchOverlay.addEventListener('click', () => {
+            if (modelViewer.canActivateAR) {
+                modelViewer.activateAR();
+            }
+            launchOverlay.style.opacity = '0';
+            setTimeout(() => launchOverlay.style.display = 'none', 500);
+        });
+
+        modelViewer.addEventListener('click', (event) => {
+            const hit = modelViewer.positionAndNormalFromPoint(event.clientX, event.clientY);
+            if (hit) {
+                toast.style.opacity = '1';
+                setTimeout(() => window.location.href = "https://www.google.com", 800);
+            }
+        });
     </script>
 </body>
-</html>
+</html> 
