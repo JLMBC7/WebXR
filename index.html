@@ -25,6 +25,7 @@
         model-viewer {
             width: 100vw;
             height: 100vh;
+            display: block;
         }
         #launch-overlay {
             position: fixed;
@@ -66,14 +67,17 @@
             pointer-events: none;
             z-index: 200;
         }
-        /* Clip the flames so they don't bleed out of the dumpster bottom */
+        
+        /* The fire-container needs to be relatively sized so it persists in AR */
         .fire-container {
-            width: 512px;
-            height: 512px;
+            width: 250px;
+            height: 250px;
             pointer-events: none;
             overflow: hidden;
-            mask-image: linear-gradient(to top, transparent 10%, black 25%);
-            -webkit-mask-image: linear-gradient(to top, transparent 10%, black 25%);
+            /* Clipping logic to keep fire inside the dumpster walls */
+            mask-image: linear-gradient(to top, transparent 15%, black 35%);
+            -webkit-mask-image: linear-gradient(to top, transparent 15%, black 35%);
+            transform: translate(-50%, -100%); /* Center the hotspot and grow upwards */
         }
     </style>
 </head>
@@ -95,7 +99,7 @@
         alt="A Dirty Dumpster with Procedural Volumetric Fire">
         
         <!-- Fire Hotspot - Centered in the dumpster opening -->
-        <div slot="hotspot-fire" data-position="0m 0.45m 0m" data-normal="0m 1m 0m">
+        <div slot="hotspot-fire" data-position="0m 0.45m 0m" data-normal="0m 1m 0m" data-visibility-attribute="visible">
             <div class="fire-container">
                 <canvas id="fire-canvas" style="width: 100%; height: 100%;"></canvas>
             </div>
@@ -122,7 +126,6 @@
             uniform float time;
             varying vec2 vUv;
 
-            // Fractal Noise (Multi-layered Simplex/Perlin approximation)
             float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
             vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
             vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
@@ -147,31 +150,26 @@
             void main() {
                 vec2 uv = vUv;
                 
-                // Animate flame upwards (Y-axis)
                 float t = time * 1.5;
                 vec3 noiseScale = vec3(uv * 4.0, t);
                 
-                // Musgrave/Fractal style noise accumulation
                 float n = noise(noiseScale);
                 n += 0.5 * noise(noiseScale * 2.1 + vec3(0.0, -t, 0.0));
                 n += 0.25 * noise(noiseScale * 4.4);
                 
-                // Shape the flame base and taper the top
                 float shape = 1.0 - abs(uv.x - 0.5) * 2.8;
-                shape *= smoothstep(0.0, 0.2, uv.y); // Fade bottom
-                shape *= (1.0 - uv.y); // Fade top
+                shape *= smoothstep(0.0, 0.2, uv.y);
+                shape *= (1.0 - uv.y);
                 
-                // Fire gradient mapping
                 float fireIntensity = n * shape;
                 
-                vec3 colorLow = vec3(0.1, 0.0, 0.0);    // Dark Red
-                vec3 colorMid = vec3(1.0, 0.3, 0.0);    // Orange
-                vec3 colorHigh = vec3(1.0, 0.9, 0.4);   // Bright Core
+                vec3 colorLow = vec3(0.1, 0.0, 0.0);
+                vec3 colorMid = vec3(1.0, 0.3, 0.0);
+                vec3 colorHigh = vec3(1.0, 0.9, 0.4);
                 
                 vec3 finalColor = mix(colorLow, colorMid, fireIntensity * 1.5);
                 finalColor = mix(finalColor, colorHigh, fireIntensity * fireIntensity * 2.0);
                 
-                // Flickering Alpha
                 float alpha = clamp(fireIntensity * 2.5, 0.0, 1.0);
                 
                 gl_FragColor = vec4(finalColor, alpha);
@@ -181,11 +179,11 @@
         // Initialize Three.js on the Hotspot Canvas
         const canvas = document.getElementById('fire-canvas');
         const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        renderer.setSize(512, 512);
+        renderer.setSize(256, 256); // Slightly smaller for better AR performance
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-        camera.position.set(0, 1.5, 5);
+        camera.position.set(0, 1.2, 4);
         camera.lookAt(0, 1, 0);
 
         const uniforms = { time: { value: 0.0 } };
@@ -195,17 +193,17 @@
             fragmentShader,
             transparent: true,
             side: THREE.DoubleSide,
-            depthWrite: false
+            depthWrite: false,
+            blending: THREE.AdditiveBlending // Helps fire pop in AR
         });
 
-        // Use Intersecting Planes (Cross-Plane) for Volumetric Illusion
         const fireGroup = new THREE.Group();
-        const planeGeo = new THREE.PlaneGeometry(3.5, 5.0);
+        const planeGeo = new THREE.PlaneGeometry(3.0, 4.5);
         
         for (let i = 0; i < 3; i++) {
             const plane = new THREE.Mesh(planeGeo, material);
             plane.rotation.y = (Math.PI / 3) * i;
-            plane.position.y = 1.8;
+            plane.position.y = 1.6;
             fireGroup.add(plane);
         }
         scene.add(fireGroup);
@@ -213,10 +211,7 @@
         function animate(t) {
             const time = t / 1000;
             uniforms.time.value = time;
-            
-            // Subtle rotation to enhance the volumetric feel
-            fireGroup.rotation.y = time * 0.1;
-            
+            fireGroup.rotation.y = time * 0.15;
             renderer.render(scene, camera);
             requestAnimationFrame(animate);
         }
