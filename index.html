@@ -1,177 +1,266 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Dumpster Fire AR</title>
-    <!-- Include A-Frame and AR.js -->
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babylon.js AR Dumpster Fire</title>
+    <!-- Babylon.js Core and Loaders -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <style>
-        .ui-overlay {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 15px;
-            border-radius: 10px;
-            font-family: sans-serif;
-            text-align: center;
-            pointer-events: none;
-            width: 80%;
-            max-width: 300px;
+        body, html {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
-        /* iOS often requires a user gesture to start video/audio */
-        #start-button {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2000;
-            padding: 20px;
-            background: #ff6600;
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
             color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 18px;
-            cursor: pointer;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .instruction-card {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+            max-width: 280px;
+            pointer-events: auto;
+        }
+        .status-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #f39c12;
+        }
+        .error-badge {
+            background: #e74c3c;
+        }
+        .success-badge {
+            background: #27ae60;
         }
     </style>
 </head>
-<body style="margin: 0; overflow: hidden;">
-    
-    <button id="start-button">Start AR Experience</button>
+<body>
 
-    <div class="ui-overlay">
-        Point camera at a <b>Hiro Marker</b><br>
-        <small>Optimized for iOS Safari</small>
+    <div id="ui-overlay">
+        <div class="instruction-card">
+            <h2 style="margin: 0 0 10px 0; font-size: 18px;">Dumpster Fire AR</h2>
+            <p id="status-text" style="margin: 0; font-size: 14px;">Checking WebXR support...</p>
+            <div id="status-icon" class="status-badge">INITIALIZING</div>
+        </div>
     </div>
 
-    <!-- 
-        iOS Specific Fixes:
-        1. 'videoTexture: true' helps with some iOS rendering bugs
-        2. 'sourceType: webcam' combined with the button trigger ensures permissions
-    -->
-    <a-scene 
-        embedded 
-        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;" 
-        renderer="antialias: true; alpha: true; colorManagement: true; logarithmicDepthBuffer: true;">
-        
-        <!-- Assets Management -->
-        <a-assets>
-            <a-asset-item id="dumpster-model" src="https://github.com/JLMBC7/WebXR/blob/c6ee7b7b5eb27eac5d111d0788edeab0e2899c94/DumpsterFire.glb"></a-asset-item>
-        </a-assets>
-
-        <!-- AR Marker Handler -->
-        <a-marker type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro">
-            
-            <a-entity 
-                id="dumpster-container" 
-                position="0 0 0" 
-                scale="1 1 1">
-                
-                <a-entity 
-                    gltf-model="#dumpster-model" 
-                    position="0 0 0"
-                    rotation="0 0 0"
-                    scale="0.5 0.5 0.5">
-                </a-entity>
-                
-                <a-entity id="fire-container" position="0 0.2 0" fire-system></a-entity>
-                
-                <a-light type="point" color="#ff6600" intensity="2" distance="2"
-                         animation="property: intensity; from: 1; to: 2.5; dir: alternate; dur: 120; loop: true">
-                </a-light>
-            </a-entity>
-
-        </a-marker>
-
-        <a-entity camera></a-entity>
-    </a-scene>
+    <canvas id="renderCanvas"></canvas>
 
     <script>
-        // iOS Safari Permission Handling
-        document.getElementById('start-button').addEventListener('click', function() {
-            this.style.display = 'none';
-            // Explicitly resume audio context or video if needed
-            const scene = document.querySelector('a-scene');
-            if (scene.hasLoaded) {
-                scene.play();
+        const canvas = document.getElementById("renderCanvas");
+        const statusText = document.getElementById("status-text");
+        const statusIcon = document.getElementById("status-icon");
+        const engine = new BABYLON.Engine(canvas, true);
+
+        const createScene = async function () {
+            const scene = new BABYLON.Scene(engine);
+            let isARMode = false;
+
+            // --- Lighting ---
+            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 0.5;
+
+            const fireLight = new BABYLON.PointLight("fireLight", new BABYLON.Vector3(0, 0, 0), scene);
+            fireLight.diffuse = new BABYLON.Color3(1, 0.4, 0.1);
+            fireLight.intensity = 0; 
+
+            // --- Environment Setup ---
+            const reticle = BABYLON.MeshBuilder.CreateTorus("reticle", { diameter: 0.15, thickness: 0.03 }, scene);
+            reticle.isVisible = false;
+            const reticleMat = new BABYLON.StandardMaterial("reticleMat", scene);
+            reticleMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+            reticleMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+            reticle.material = reticleMat;
+
+            // Ground for non-AR fallback
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 10, height: 10}, scene);
+            ground.isVisible = false;
+
+            // --- Fire Particle System ---
+            const fireSystem = new BABYLON.ParticleSystem("fire", 1000, scene);
+            fireSystem.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleUtils/Fire/Fire_Sheet.png", scene);
+            
+            fireSystem.isAnimationSheetEnabled = true;
+            fireSystem.startSpriteCellID = 0;
+            fireSystem.endSpriteCellID = 31;
+            fireSystem.spriteCellWidth = 128;
+            fireSystem.spriteCellHeight = 128;
+            fireSystem.spriteCellChangeSpeed = 2;
+
+            fireSystem.minSize = 0.2;
+            fireSystem.maxSize = 0.5;
+            fireSystem.minLifeTime = 0.5;
+            fireSystem.maxLifeTime = 1.0;
+            fireSystem.emitRate = 40;
+            
+            fireSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+            fireSystem.gravity = new BABYLON.Vector3(0, 2, 0);
+            fireSystem.direction1 = new BABYLON.Vector3(-0.5, 1, -0.5);
+            fireSystem.direction2 = new BABYLON.Vector3(0.5, 1, 0.5);
+            
+            fireSystem.color1 = new BABYLON.Color4(1, 0.8, 0.2, 1);
+            fireSystem.color2 = new BABYLON.Color4(1, 0.4, 0, 1);
+            fireSystem.colorDead = new BABYLON.Color4(0.2, 0, 0, 0);
+
+            // Variables for placement
+            let dumpster = null;
+            let placed = false;
+
+            // --- WebXR Implementation with Fallback ---
+            try {
+                const supported = await BABYLON.WebXRSessionManager.IsSessionSupportedAsync("immersive-ar");
+                
+                if (supported) {
+                    const xr = await scene.createDefaultXRExperienceAsync({
+                        uiOptions: {
+                            sessionMode: "immersive-ar",
+                            referenceSpaceType: "local-floor"
+                        }
+                    });
+
+                    if (xr.baseExperience) {
+                        isARMode = true;
+                        const featuresManager = xr.baseExperience.featuresManager;
+                        const hitTest = featuresManager.enableFeature(BABYLON.WebXRFeatureName.HIT_TEST, "latest");
+
+                        hitTest.onHitTestResultObservable.add((results) => {
+                            if (results.length > 0 && !placed) {
+                                reticle.isVisible = true;
+                                results[0].transformationMatrix.decompose(undefined, reticle.rotationQuaternion, reticle.position);
+                            } else {
+                                reticle.isVisible = false;
+                            }
+                        });
+
+                        xr.baseExperience.onStateChangedObservable.add((state) => {
+                            switch(state) {
+                                case BABYLON.WebXRState.ENTERING_XR:
+                                    statusText.innerText = "Entering AR...";
+                                    break;
+                                case BABYLON.WebXRState.IN_XR:
+                                    statusIcon.innerText = "AR ACTIVE";
+                                    statusText.innerText = "Scan the floor. Tap the white ring to place the dumpster.";
+                                    break;
+                                case BABYLON.WebXRState.EXITING_XR:
+                                    statusText.innerText = "Exited AR.";
+                                    statusIcon.innerText = "READY";
+                                    break;
+                            }
+                        });
+                    }
+                } else {
+                    throw new Error("WebXR AR not supported");
+                }
+            } catch (e) {
+                console.warn("XR Not available, using 3D fallback mode:", e.message);
+                setupFallbackMode(scene);
             }
+
+            function setupFallbackMode(scene) {
+                isARMode = false;
+                statusText.innerText = "AR not supported. Running in 3D Preview mode. Click the floor to place the dumpster.";
+                statusIcon.innerText = "PREVIEW MODE";
+                statusIcon.classList.add("success-badge");
+
+                // Standard Camera
+                const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 5, BABYLON.Vector3.Zero(), scene);
+                camera.attachControl(canvas, true);
+                camera.lowerRadiusLimit = 2;
+                camera.upperRadiusLimit = 15;
+
+                // Show ground so user can click somewhere
+                ground.isVisible = true;
+                const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+                groundMat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+                ground.material = groundMat;
+
+                // Simple raycast for placement in non-AR
+                scene.onPointerMove = () => {
+                    if (placed) return;
+                    const pickInfo = scene.pick(scene.pointerX, scene.pointerY, (mesh) => mesh === ground);
+                    if (pickInfo.hit) {
+                        reticle.isVisible = true;
+                        reticle.position.copyFrom(pickInfo.pickedPoint);
+                    } else {
+                        reticle.isVisible = false;
+                    }
+                };
+            }
+
+            // Universal pointer handler
+            scene.onPointerDown = (evt) => {
+                if (reticle.isVisible && !placed) {
+                    placeDumpster(reticle.position);
+                }
+            };
+
+            async function placeDumpster(position) {
+                placed = true;
+                reticle.isVisible = false;
+                statusText.innerText = "Dumpster ignited! 🔥";
+                if (statusIcon.innerText === "AR ACTIVE") statusIcon.innerText = "FIRE ACTIVE";
+
+                dumpster = BABYLON.MeshBuilder.CreateBox("dumpster", { width: 0.8, height: 0.5, depth: 0.6 }, scene);
+                dumpster.position.copyFrom(position);
+                dumpster.position.y += 0.25;
+
+                const dumpsterMat = new BABYLON.StandardMaterial("dumpMat", scene);
+                dumpsterMat.diffuseColor = new BABYLON.Color3(0.1, 0.3, 0.1); 
+                dumpster.material = dumpsterMat;
+
+                const lid = BABYLON.MeshBuilder.CreateBox("lid", { width: 0.8, height: 0.05, depth: 0.6 }, scene);
+                lid.parent = dumpster;
+                lid.position.y = 0.25;
+                lid.rotation.x = -Math.PI / 4;
+
+                fireSystem.emitter = dumpster;
+                fireSystem.minEmitBox = new BABYLON.Vector3(-0.3, 0.1, -0.2);
+                fireSystem.maxEmitBox = new BABYLON.Vector3(0.3, 0.2, 0.2);
+                fireSystem.start();
+
+                fireLight.position.copyFrom(position);
+                fireLight.position.y += 0.6;
+                fireLight.intensity = 1.5;
+
+                scene.registerBeforeRender(() => {
+                    fireLight.intensity = 1.2 + Math.random() * 0.6;
+                });
+            }
+
+            return scene;
+        };
+
+        createScene().then((scene) => {
+            engine.runRenderLoop(() => {
+                scene.render();
+            });
         });
 
-        // Enhanced Fire System for GLB integration
-        AFRAME.registerComponent('fire-system', {
-            init: function () {
-                this.particles = [];
-                this.particleCount = 35;
-                
-                for (let i = 0; i < this.particleCount; i++) {
-                    this.createParticle();
-                }
-            },
-
-            createParticle: function () {
-                const p = document.createElement('a-entity');
-                
-                const size = Math.random() * 0.25 + 0.15;
-                p.setAttribute('geometry', {
-                    primitive: 'plane',
-                    width: size,
-                    height: size
-                });
-
-                const colors = ['#ffcc00', '#ff8800', '#ff3300', '#ff5500'];
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                
-                p.setAttribute('material', {
-                    color: color,
-                    transparent: true,
-                    opacity: 0.8,
-                    shader: 'flat',
-                    side: 'double',
-                    blending: 'additive'
-                });
-
-                const x = (Math.random() - 0.5) * 0.4;
-                const z = (Math.random() - 0.5) * 0.4;
-                p.setAttribute('position', { x: x, y: 0, z: z });
-                
-                this.particles.push({
-                    el: p,
-                    speed: Math.random() * 0.015 + 0.005,
-                    life: Math.random(),
-                    drift: (Math.random() - 0.5) * 0.005
-                });
-
-                this.el.appendChild(p);
-            },
-
-            tick: function (time, timeDelta) {
-                this.particles.forEach(p => {
-                    let pos = p.el.getAttribute('position');
-                    
-                    pos.y += p.speed;
-                    pos.x += p.drift;
-                    
-                    p.life -= 0.02;
-                    p.el.setAttribute('material', 'opacity', p.life);
-                    
-                    if (p.life <= 0 || pos.y > 0.8) {
-                        pos.y = 0;
-                        pos.x = (Math.random() - 0.5) * 0.4;
-                        pos.z = (Math.random() - 0.5) * 0.4;
-                        p.life = 1.0;
-                    }
-                    
-                    p.el.setAttribute('position', pos);
-                    p.el.object3D.lookAt(0, pos.y, 0);
-                });
-            }
+        window.addEventListener("resize", () => {
+            engine.resize();
         });
     </script>
 </body>
