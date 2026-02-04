@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Babylon.js AR Dumpster Fire</title>
-    <!-- WebXR Polyfill for iOS Support -->
+    <!-- WebXR Polyfill for iOS Support (Essential for older iOS/Safari versions) -->
     <script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js"></script>
     <!-- Babylon.js Core and Loaders -->
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
@@ -16,13 +16,14 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #1a1a1a;
+            background-color: #000;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
         #renderCanvas {
             width: 100%;
             height: 100%;
             touch-action: none;
+            display: block;
         }
         #ui-overlay {
             position: absolute;
@@ -31,154 +32,167 @@
             z-index: 10;
             pointer-events: none;
             color: white;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
             width: calc(100% - 40px);
         }
         .instruction-card {
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(8px);
+            background: rgba(20, 20, 20, 0.9);
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
             max-width: 320px;
             pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         .status-badge {
             display: inline-block;
-            margin-top: 8px;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: bold;
-            letter-spacing: 0.5px;
+            margin-top: 10px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1px;
             background: #f39c12;
             text-transform: uppercase;
         }
-        .success-badge { background: #27ae60; }
-        .error-badge { background: #e74c3c; }
+        .success-badge { background: #2ecc71; }
+        .ios-hint {
+            margin-top: 10px;
+            font-size: 11px;
+            color: #aaa;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
     <div id="ui-overlay">
         <div class="instruction-card">
-            <h2 style="margin: 0 0 8px 0; font-size: 18px;">Dumpster Fire AR</h2>
-            <p id="status-text" style="margin: 0; font-size: 14px; line-height: 1.4;">Initializing engine...</p>
-            <div id="status-icon" class="status-badge">STANDBY</div>
+            <h2 style="margin: 0 0 6px 0; font-size: 18px; color: #ff6a00;">Dumpster Fire AR</h2>
+            <p id="status-text" style="margin: 0; font-size: 13px; line-height: 1.4; color: #eee;">Checking for AR capabilities...</p>
+            <div id="status-icon" class="status-badge">Detecting...</div>
+            <div id="ios-hint" class="ios-hint">Note: If the AR button doesn't appear, ensure "WebXR" is enabled in Safari Advanced Settings.</div>
         </div>
     </div>
 
     <canvas id="renderCanvas"></canvas>
 
     <script>
-        // Initialize Polyfill immediately for iOS
-        if (!navigator.xr) {
-            new WebXRPolyfill();
-        }
+        // Start Polyfill for iOS compatibility
+        (function() {
+            if (!navigator.xr) {
+                console.log("WebXR not found, initializing polyfill...");
+                new WebXRPolyfill();
+            }
+        })();
 
         const canvas = document.getElementById("renderCanvas");
         const statusText = document.getElementById("status-text");
         const statusIcon = document.getElementById("status-icon");
-        const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+        const iosHint = document.getElementById("ios-hint");
+        
+        const engine = new BABYLON.Engine(canvas, true, { 
+            preserveDrawingBuffer: true, 
+            stencil: true,
+            disableUniformBuffers: true // Fix for some iOS WebGL issues
+        });
 
-        const DUMPSTER_MODEL_URL = "https://raw.githubusercontent.com/JLMBC7/WebXR/73d43764a17823e0f1a163457d84ea93d0a953f4/DirtyDumpster.glb";
+        const DUMPSTER_URL = "https://raw.githubusercontent.com/JLMBC7/WebXR/73d43764a17823e0f1a163457d84ea93d0a953f4/DirtyDumpster.glb";
 
         const createScene = async function () {
             const scene = new BABYLON.Scene(engine);
-            
-            // Basic Scene Setup
+            scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // Transparent for AR
+
             const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            light.intensity = 0.8;
+            light.intensity = 1.0;
 
             const fireLight = new BABYLON.PointLight("fireLight", new BABYLON.Vector3(0, 0, 0), scene);
-            fireLight.diffuse = new BABYLON.Color3(1, 0.4, 0.1);
+            fireLight.diffuse = new BABYLON.Color3(1, 0.5, 0);
             fireLight.intensity = 0;
 
-            const reticle = BABYLON.MeshBuilder.CreateTorus("reticle", { diameter: 0.15, thickness: 0.02 }, scene);
+            const reticle = BABYLON.MeshBuilder.CreateTorus("reticle", { diameter: 0.12, thickness: 0.015 }, scene);
             reticle.isVisible = false;
-            const reticleMat = new BABYLON.StandardMaterial("reticleMat", scene);
-            reticleMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
-            reticle.material = reticleMat;
-
-            // Fallback environment
-            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
-            ground.isVisible = false;
-            const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
-            groundMat.alpha = 0.2;
-            ground.material = groundMat;
+            const retMat = new BABYLON.StandardMaterial("retMat", scene);
+            retMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+            reticle.material = retMat;
 
             // Fire Particles
-            const fireSystem = new BABYLON.ParticleSystem("fire", 1500, scene);
-            fireSystem.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleUtils/Fire/Fire_Sheet.png", scene);
-            fireSystem.isAnimationSheetEnabled = true;
-            fireSystem.startSpriteCellID = 0;
-            fireSystem.endSpriteCellID = 31;
-            fireSystem.spriteCellWidth = 128;
-            fireSystem.spriteCellHeight = 128;
-            fireSystem.spriteCellChangeSpeed = 2;
-            fireSystem.minSize = 0.2;
-            fireSystem.maxSize = 0.5;
-            fireSystem.minLifeTime = 0.5;
-            fireSystem.maxLifeTime = 1.0;
-            fireSystem.emitRate = 50;
-            fireSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
-            fireSystem.gravity = new BABYLON.Vector3(0, 2.5, 0);
-            fireSystem.direction1 = new BABYLON.Vector3(-0.3, 1, -0.3);
-            fireSystem.direction2 = new BABYLON.Vector3(0.3, 1, 0.3);
-            fireSystem.color1 = new BABYLON.Color4(1, 0.7, 0.2, 1);
-            fireSystem.color2 = new BABYLON.Color4(1, 0.3, 0, 1);
-            fireSystem.colorDead = new BABYLON.Color4(0, 0, 0, 0);
+            const fire = new BABYLON.ParticleSystem("fire", 1000, scene);
+            fire.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleUtils/Fire/Fire_Sheet.png", scene);
+            fire.isAnimationSheetEnabled = true;
+            fire.startSpriteCellID = 0;
+            fire.endSpriteCellID = 31;
+            fire.spriteCellWidth = 128;
+            fire.spriteCellHeight = 128;
+            fire.spriteCellChangeSpeed = 2;
+            fire.minSize = 0.2;
+            fire.maxSize = 0.45;
+            fire.emitRate = 40;
+            fire.gravity = new BABYLON.Vector3(0, 2, 0);
+            fire.color1 = new BABYLON.Color4(1, 0.6, 0.1, 1);
+            fire.color2 = new BABYLON.Color4(1, 0.2, 0, 1);
 
             let placed = false;
 
-            // WebXR AR Logic
+            // Detect Device Type
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            if (isIOS) iosHint.style.display = "block";
+
             try {
-                const xrSupported = await BABYLON.WebXRSessionManager.IsSessionSupportedAsync("immersive-ar");
+                // Check specifically for AR support
+                const supported = await BABYLON.WebXRSessionManager.IsSessionSupportedAsync("immersive-ar");
                 
-                if (xrSupported) {
+                if (supported) {
                     const xr = await scene.createDefaultXRExperienceAsync({
                         uiOptions: {
                             sessionMode: "immersive-ar",
-                            referenceSpaceType: "local-floor"
+                            referenceSpaceType: "local-floor",
+                            onError: (err) => {
+                                statusText.innerText = "XR Error: " + err;
+                                setupDesktopFallback(scene);
+                            }
+                        },
+                        optionalFeatures: ["hit-test", "dom-overlay"],
+                        domOverlay: { root: document.getElementById("ui-overlay") }
+                    });
+
+                    const featuresManager = xr.baseExperience.featuresManager;
+                    const hitTest = featuresManager.enableFeature(BABYLON.WebXRFeatureName.HIT_TEST, "latest");
+
+                    hitTest.onHitTestResultObservable.add((results) => {
+                        if (results.length > 0 && !placed) {
+                            reticle.isVisible = true;
+                            results[0].transformationMatrix.decompose(undefined, reticle.rotationQuaternion, reticle.position);
+                        } else {
+                            reticle.isVisible = false;
                         }
                     });
 
-                    if (xr.baseExperience) {
-                        const featuresManager = xr.baseExperience.featuresManager;
-                        const hitTest = featuresManager.enableFeature(BABYLON.WebXRFeatureName.HIT_TEST, "latest");
-
-                        hitTest.onHitTestResultObservable.add((results) => {
-                            if (results.length > 0 && !placed) {
-                                reticle.isVisible = true;
-                                results[0].transformationMatrix.decompose(undefined, reticle.rotationQuaternion, reticle.position);
-                            } else {
-                                reticle.isVisible = false;
-                            }
-                        });
-
-                        xr.baseExperience.onStateChangedObservable.add((state) => {
-                            if (state === BABYLON.WebXRState.IN_XR) {
-                                statusIcon.innerText = "AR ACTIVE";
-                                statusText.innerText = "Look at the floor. Tap the ring to place the dumpster.";
-                            }
-                        });
-                    }
+                    xr.baseExperience.onStateChangedObservable.add((state) => {
+                        if (state === BABYLON.WebXRState.IN_XR) {
+                            statusIcon.innerText = "AR READY";
+                            statusIcon.classList.add("success-badge");
+                            statusText.innerText = "Scan your floor. When you see the ring, tap to drop the dumpster.";
+                        }
+                    });
                 } else {
-                    setup3DPreview(scene);
+                    setupDesktopFallback(scene);
                 }
             } catch (e) {
-                console.error("XR Error:", e);
-                setup3DPreview(scene);
+                console.error(e);
+                setupDesktopFallback(scene);
             }
 
-            function setup3DPreview(s) {
-                statusText.innerText = "AR Mode requires Safari 18+ or a WebXR enabled browser. Using 3D preview.";
-                statusIcon.innerText = "PREVIEW MODE";
-                statusIcon.classList.add("success-badge");
-
-                const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 5, BABYLON.Vector3.Zero(), s);
-                camera.attachControl(canvas, true);
-                ground.isVisible = true;
+            function setupDesktopFallback(s) {
+                statusText.innerText = "AR not detected. Using 3D preview mode.";
+                statusIcon.innerText = "3D VIEW";
+                const cam = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/2.5, 4, BABYLON.Vector3.Zero(), s);
+                cam.attachControl(canvas, true);
+                
+                const ground = BABYLON.MeshBuilder.CreateGround("g", {width: 10, height: 10}, s);
+                const gMat = new BABYLON.StandardMaterial("gMat", s);
+                gMat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+                ground.material = gMat;
 
                 s.onPointerMove = () => {
                     if (placed) return;
@@ -190,51 +204,45 @@
                 };
             }
 
-            scene.onPointerDown = (evt) => {
+            scene.onPointerDown = () => {
                 if (reticle.isVisible && !placed) {
-                    placeDumpster(reticle.position.clone());
+                    dropTheDumpster(reticle.position.clone());
                 }
             };
 
-            async function placeDumpster(pos) {
+            async function dropTheDumpster(pos) {
                 placed = true;
                 reticle.isVisible = false;
-                statusText.innerText = "Summoning the dumpster...";
+                statusText.innerText = "Loading model...";
 
                 try {
-                    const result = await BABYLON.SceneLoader.ImportMeshAsync("", "", DUMPSTER_MODEL_URL, scene);
-                    const root = result.meshes[0];
-                    root.position.copyFrom(pos);
-                    root.scaling = new BABYLON.Vector3(0.5, 0.5, 0.5);
+                    const res = await BABYLON.SceneLoader.ImportMeshAsync("", "", DUMPSTER_URL, scene);
+                    const mesh = res.meshes[0];
+                    mesh.position.copyFrom(pos);
+                    mesh.scaling = new BABYLON.Vector3(0.4, 0.4, 0.4);
 
-                    fireSystem.emitter = root;
-                    // Adjust emission box based on model height
-                    fireSystem.minEmitBox = new BABYLON.Vector3(-0.35, 0.45, -0.25);
-                    fireSystem.maxEmitBox = new BABYLON.Vector3(0.35, 0.55, 0.25);
-                    fireSystem.start();
+                    fire.emitter = mesh;
+                    fire.minEmitBox = new BABYLON.Vector3(-0.3, 0.4, -0.2);
+                    fire.maxEmitBox = new BABYLON.Vector3(0.3, 0.5, 0.2);
+                    fire.start();
 
-                    fireLight.position.copyFrom(pos);
-                    fireLight.position.y += 0.7;
-                    fireLight.intensity = 1.8;
+                    fireLight.position.copyFrom(pos).addInPlaceFromFloats(0, 0.6, 0);
+                    fireLight.intensity = 2;
 
                     scene.registerBeforeRender(() => {
-                        fireLight.intensity = 1.4 + Math.random() * 0.8;
+                        fireLight.intensity = 1.5 + Math.random() * 0.8;
                     });
 
-                    statusText.innerText = "Everything is fine. 🔥";
-                } catch (err) {
-                    statusText.innerText = "Model error. Check your connection.";
-                    console.error(err);
+                    statusText.innerText = "Stay safe out there! 🔥";
+                } catch (e) {
+                    statusText.innerText = "Model failed to load.";
                 }
             }
 
             return scene;
         };
 
-        createScene().then((scene) => {
-            engine.runRenderLoop(() => scene.render());
-        });
-
+        createScene().then(s => engine.runRenderLoop(() => s.render()));
         window.addEventListener("resize", () => engine.resize());
     </script>
 </body>
