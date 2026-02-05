@@ -68,7 +68,6 @@
             z-index: 200;
         }
         
-        /* Expanded container and adjusted clip-path for the wider fire spread */
         .fire-hotspot-container {
             width: 500px;
             height: 600px;
@@ -78,15 +77,16 @@
             left: 50%;
             transform: translate(-50%, 0%);
             
-            /* Polygon adjusted to allow more horizontal spread, especially on the left */
+            /* Clipping for dumpster opening */
             clip-path: polygon(5% 0%, 95% 0%, 95% 85%, 5% 85%);
             
             mask-image: linear-gradient(to top, transparent 15%, black 30%);
             -webkit-mask-image: linear-gradient(to top, transparent 15%, black 30%);
         }
 
-        #ar-element[ar-status="object-placed"] [slot="hotspot-fire"] {
-            display: block !important;
+        /* Updated: Ensure visible during both normal viewing AND AR placement */
+        #ar-element:not([ar-status="not-present"]) [slot="hotspot-fire"] {
+            display: block;
         }
     </style>
 </head>
@@ -132,16 +132,10 @@
             void main() {
                 vType = position.z;
                 vec3 pos = vec3(position.x, position.y, 0.0) + offset;
-                
-                // Slightly taller travel for intense look
                 float verticalPos = mod(offset.y + time * speed, 5.5);
                 pos.y = verticalPos;
-                
-                // Turbulent flickering drift
                 pos.x += sin(time * 3.0 + offset.y) * 0.2;
-                
                 vOpacity = smoothstep(0.0, 0.8, verticalPos) * smoothstep(5.5, 3.0, verticalPos);
-                
                 vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                 gl_PointSize = size * (vType == 0.0 ? 1.3 : 2.2) * (1.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
@@ -154,13 +148,10 @@
             void main() {
                 float dist = distance(gl_PointCoord, vec2(0.5));
                 if (dist > 0.5) discard;
-                
                 float strength = 1.0 - (dist * 2.0);
                 strength = pow(strength, 2.2);
-
                 vec3 color;
                 if (vType == 0.0) {
-                    // Hotter color mix: White-yellow core to deep orange
                     color = mix(vec3(1.0, 0.2, 0.0), vec3(1.0, 0.95, 0.5), vOpacity);
                     gl_FragColor = vec4(color, vOpacity * strength * 2.5);
                 } else {
@@ -179,7 +170,6 @@
         camera.position.set(0, 2.5, 7);
         camera.lookAt(0, 2.5, 0);
 
-        // Increased particle count for more intensity
         const particleCount = 800;
         const positions = new Float32Array(particleCount * 3);
         const offsets = new Float32Array(particleCount * 3);
@@ -187,13 +177,9 @@
 
         for (let i = 0; i < particleCount; i++) {
             positions[i * 3 + 2] = i < particleCount * 0.75 ? 0.0 : 1.0; 
-            
-            // Random distribution favoring the left:
-            // Range shifted from [-0.9, 0.9] to [-1.4, 1.0] to make it wider to the left
             offsets[i * 3] = (Math.random() * 2.4) - 1.4; 
             offsets[i * 3 + 1] = Math.random() * 5.5;     
             offsets[i * 3 + 2] = (Math.random() - 0.5) * 1.2; 
-            
             speeds[i] = 0.8 + Math.random() * 1.5;
         }
 
@@ -247,4 +233,4 @@
         });
     </script>
 </body>
-</html>  
+</html>
