@@ -81,6 +81,11 @@
             mask-image: linear-gradient(to top, transparent 10%, black 25%);
             -webkit-mask-image: linear-gradient(to top, transparent 10%, black 25%);
         }
+
+        /* Ensure the fire slot is visible in all active states */
+        [slot="hotspot-fire"] {
+            display: block !important;
+        }
     </style>
 </head>
 <body>
