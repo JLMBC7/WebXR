@@ -68,25 +68,25 @@
             z-index: 200;
         }
         
-        /* Ensure the fire container stays visible and correctly transformed in AR */
-        .fire-container {
-            width: 300px;
-            height: 300px;
+        /* Expanded container and adjusted clip-path for the wider fire spread */
+        .fire-hotspot-container {
+            width: 500px;
+            height: 600px;
             pointer-events: none;
-            overflow: hidden;
-            /* Clipping logic to keep fire inside the dumpster walls */
-            mask-image: linear-gradient(to top, transparent 15%, black 35%);
-            -webkit-mask-image: linear-gradient(to top, transparent 15%, black 35%);
-            /* Position alignment for model-viewer hotspot system */
             position: absolute;
             bottom: 0;
             left: 50%;
             transform: translate(-50%, 0%);
+            
+            /* Polygon adjusted to allow more horizontal spread, especially on the left */
+            clip-path: polygon(5% 0%, 95% 0%, 95% 85%, 5% 85%);
+            
+            mask-image: linear-gradient(to top, transparent 15%, black 30%);
+            -webkit-mask-image: linear-gradient(to top, transparent 15%, black 30%);
         }
 
-        /* Essential for AR visibility of hotspots */
-        #ar-element:not(.ar-ready) [slot="hotspot-fire"] {
-            display: block;
+        #ar-element[ar-status="object-placed"] [slot="hotspot-fire"] {
+            display: block !important;
         }
     </style>
 </head>
@@ -99,18 +99,17 @@
 
     <model-viewer 
         id="ar-element"
-        src="https://raw.githubusercontent.com/JLMBC7/WebXR/a7b59956486303c358bbb380bcaa992c8f084910/DirtyDumpster.glb" 
+        src="https://raw.githubusercontent.com/JLMBC7/WebXR/0e9e07278b5c8e5a1211564afab135a1c72c0b78/DDOpenLid.glb" 
         ar 
         ar-modes="webxr scene-viewer quick-look" 
         camera-controls 
         shadow-intensity="1" 
         auto-rotate
-        alt="A Dirty Dumpster with Procedural Volumetric Fire">
+        alt="Open Dumpster with Intense Sprite-based Fire and Smoke">
         
-        <!-- Fire Hotspot - data-visibility-attribute set to empty to force persistence -->
-        <div slot="hotspot-fire" data-position="0m 0.45m 0m" data-normal="0m 1m 0m">
-            <div class="fire-container">
-                <canvas id="fire-canvas" style="width: 100%; height: 100%;"></canvas>
+        <div slot="hotspot-fire" data-position="0m 0.35m 0m" data-normal="0m 1m 0m">
+            <div class="fire-hotspot-container">
+                <canvas id="fx-canvas" style="width: 100%; height: 100%;"></canvas>
             </div>
         </div>
 
@@ -122,111 +121,111 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // GLSL Shader for Procedural "Musgrave-style" Noise Fire
         const vertexShader = `
-            varying vec2 vUv;
+            uniform float time;
+            uniform float size;
+            attribute float speed;
+            attribute vec3 offset;
+            varying float vOpacity;
+            varying float vType;
+
             void main() {
-                vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                vType = position.z;
+                vec3 pos = vec3(position.x, position.y, 0.0) + offset;
+                
+                // Slightly taller travel for intense look
+                float verticalPos = mod(offset.y + time * speed, 5.5);
+                pos.y = verticalPos;
+                
+                // Turbulent flickering drift
+                pos.x += sin(time * 3.0 + offset.y) * 0.2;
+                
+                vOpacity = smoothstep(0.0, 0.8, verticalPos) * smoothstep(5.5, 3.0, verticalPos);
+                
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = size * (vType == 0.0 ? 1.3 : 2.2) * (1.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
             }
         `;
 
         const fragmentShader = `
-            uniform float time;
-            varying vec2 vUv;
-
-            float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-            vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-            vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
-
-            float noise(vec3 p){
-                vec3 a = floor(p);
-                vec3 d = p - a;
-                d = d * d * (3.0 - 2.0 * d);
-                vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
-                vec4 k1 = perm(b.xyxy);
-                vec4 k2 = perm(k1.xyxy + b.zzww);
-                vec4 c = k2 + a.zzzz;
-                vec4 k3 = perm(c);
-                vec4 k4 = perm(c + 1.0);
-                vec4 o1 = fract(k3 * (1.0 / 41.0));
-                vec4 o2 = fract(k4 * (1.0 / 41.0));
-                vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
-                vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
-                return o4.y * d.y + o4.x * (1.0 - d.y);
-            }
-
+            varying float vOpacity;
+            varying float vType;
             void main() {
-                vec2 uv = vUv;
+                float dist = distance(gl_PointCoord, vec2(0.5));
+                if (dist > 0.5) discard;
                 
-                float t = time * 1.5;
-                vec3 noiseScale = vec3(uv * 4.0, t);
-                
-                float n = noise(noiseScale);
-                n += 0.5 * noise(noiseScale * 2.1 + vec3(0.0, -t, 0.0));
-                n += 0.25 * noise(noiseScale * 4.4);
-                
-                float shape = 1.0 - abs(uv.x - 0.5) * 2.8;
-                shape *= smoothstep(0.0, 0.2, uv.y);
-                shape *= (1.0 - uv.y);
-                
-                float fireIntensity = n * shape;
-                
-                vec3 colorLow = vec3(0.1, 0.0, 0.0);
-                vec3 colorMid = vec3(1.0, 0.3, 0.0);
-                vec3 colorHigh = vec3(1.0, 0.9, 0.4);
-                
-                vec3 finalColor = mix(colorLow, colorMid, fireIntensity * 1.5);
-                finalColor = mix(finalColor, colorHigh, fireIntensity * fireIntensity * 2.0);
-                
-                float alpha = clamp(fireIntensity * 2.5, 0.0, 1.0);
-                
-                gl_FragColor = vec4(finalColor, alpha);
+                float strength = 1.0 - (dist * 2.0);
+                strength = pow(strength, 2.2);
+
+                vec3 color;
+                if (vType == 0.0) {
+                    // Hotter color mix: White-yellow core to deep orange
+                    color = mix(vec3(1.0, 0.2, 0.0), vec3(1.0, 0.95, 0.5), vOpacity);
+                    gl_FragColor = vec4(color, vOpacity * strength * 2.5);
+                } else {
+                    color = vec3(0.1, 0.1, 0.1);
+                    gl_FragColor = vec4(color, vOpacity * strength * 0.7);
+                }
             }
         `;
 
-        // Initialize Three.js on the Hotspot Canvas
-        const canvas = document.getElementById('fire-canvas');
+        const canvas = document.getElementById('fx-canvas');
         const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        renderer.setSize(512, 512); // Higher resolution for better clarity
+        renderer.setSize(512, 512);
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-        camera.position.set(0, 1.2, 4);
-        camera.lookAt(0, 1, 0);
+        camera.position.set(0, 2.5, 7);
+        camera.lookAt(0, 2.5, 0);
 
-        const uniforms = { time: { value: 0.0 } };
+        // Increased particle count for more intensity
+        const particleCount = 800;
+        const positions = new Float32Array(particleCount * 3);
+        const offsets = new Float32Array(particleCount * 3);
+        const speeds = new Float32Array(particleCount);
+
+        for (let i = 0; i < particleCount; i++) {
+            positions[i * 3 + 2] = i < particleCount * 0.75 ? 0.0 : 1.0; 
+            
+            // Random distribution favoring the left:
+            // Range shifted from [-0.9, 0.9] to [-1.4, 1.0] to make it wider to the left
+            offsets[i * 3] = (Math.random() * 2.4) - 1.4; 
+            offsets[i * 3 + 1] = Math.random() * 5.5;     
+            offsets[i * 3 + 2] = (Math.random() - 0.5) * 1.2; 
+            
+            speeds[i] = 0.8 + Math.random() * 1.5;
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('offset', new THREE.BufferAttribute(offsets, 3));
+        geometry.setAttribute('speed', new THREE.BufferAttribute(speeds, 1));
+
+        const uniforms = {
+            time: { value: 0.0 },
+            size: { value: 160.0 }
+        };
+
         const material = new THREE.ShaderMaterial({
             uniforms,
             vertexShader,
             fragmentShader,
             transparent: true,
-            side: THREE.DoubleSide,
             depthWrite: false,
-            blending: THREE.AdditiveBlending 
+            blending: THREE.AdditiveBlending
         });
 
-        const fireGroup = new THREE.Group();
-        const planeGeo = new THREE.PlaneGeometry(3.0, 4.5);
-        
-        for (let i = 0; i < 3; i++) {
-            const plane = new THREE.Mesh(planeGeo, material);
-            plane.rotation.y = (Math.PI / 3) * i;
-            plane.position.y = 1.6;
-            fireGroup.add(plane);
-        }
-        scene.add(fireGroup);
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
 
         function animate(t) {
-            const time = t / 1000;
-            uniforms.time.value = time;
-            fireGroup.rotation.y = time * 0.15;
+            uniforms.time.value = t / 1000;
             renderer.render(scene, camera);
             requestAnimationFrame(animate);
         }
         requestAnimationFrame(animate);
 
-        // App Interaction Logic
         const modelViewer = document.querySelector("#ar-element");
         const launchOverlay = document.getElementById('launch-overlay');
         const toast = document.getElementById('toast');
