@@ -82,9 +82,11 @@
             -webkit-mask-image: linear-gradient(to top, transparent 10%, black 25%);
         }
 
-        /* Ensure the fire slot is visible in all active states */
+        /* Essential fix: Ensure slot is visible and forced to be on top */
         [slot="hotspot-fire"] {
             display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
         }
     </style>
 </head>
@@ -95,18 +97,24 @@
         <p>Tap to place the dumpster</p>
     </div>
 
+    <!-- 
+      Added ar-placement="floor" to help with stability 
+      Added loading="eager" to ensure assets are ready for AR transition
+    -->
     <model-viewer 
         id="ar-element"
         src="https://raw.githubusercontent.com/JLMBC7/WebXR/0e9e07278b5c8e5a1211564afab135a1c72c0b78/DDOpenLid.glb" 
         ar 
         ar-modes="webxr scene-viewer quick-look" 
+        ar-placement="floor"
         camera-controls 
         shadow-intensity="1" 
         auto-rotate
+        loading="eager"
         alt="Open Dumpster AR Experience">
         
         <!-- Fire Hotspot positioned inside the bin -->
-        <div slot="hotspot-fire" data-position="0m 0.3m 0m" data-normal="0m 1m 0m">
+        <div slot="hotspot-fire" data-position="0m 0.3m 0m" data-normal="0m 1m 0m" data-visibility-attribute="visible">
             <div class="fire-hotspot-container">
                 <canvas id="fx-canvas" style="width: 100%; height: 100%;"></canvas>
             </div>
@@ -131,11 +139,10 @@
         camera.lookAt(0, 2, 0);
 
         const loader = new THREE.TextureLoader();
-        // Using a soft glow PNG as the base for the flame sprites
         const fireTex = loader.load('https://threejs.org/examples/textures/sprites/ball.png');
 
         const particles = [];
-        const particleCount = 40;
+        const particleCount = 45; // Slightly more density
 
         for (let i = 0; i < particleCount; i++) {
             const material = new THREE.SpriteMaterial({
@@ -148,7 +155,6 @@
 
             const sprite = new THREE.Sprite(material);
             resetParticle(sprite);
-            // Stagger start times
             sprite.userData.age = Math.random() * 2;
             
             scene.add(sprite);
@@ -163,31 +169,27 @@
             sprite.userData.speed = 1.5 + Math.random() * 2;
             sprite.userData.age = 0;
             sprite.userData.drift = (Math.random() - 0.5) * 0.5;
-            // Hotter core color vs outer
             const isCore = Math.random() > 0.5;
             sprite.material.color.set(isCore ? 0xffaa44 : 0xff4411);
         }
 
         function animate(t) {
-            const delta = 0.016; // Approx 60fps
+            const delta = 0.016;
             
             particles.forEach(p => {
                 p.userData.age += delta;
-                
-                // Move up
                 p.position.y += p.userData.speed * delta;
                 p.position.x += Math.sin(p.userData.age * 4) * 0.02 + p.userData.drift * delta;
                 
-                // Scale and Opacity lifecycle
-                const life = p.userData.age / 2; // Life lasts 2 seconds
+                const life = p.userData.age / 1.8; 
                 p.scale.set(
-                    (1.5 - life) * 1.5, 
-                    (1.5 - life) * 1.5, 
+                    (1.5 - life) * 1.8, 
+                    (1.5 - life) * 1.8, 
                     1
                 );
-                p.material.opacity = (1.0 - life) * 0.8;
+                p.material.opacity = Math.max(0, (1.0 - life) * 0.9);
 
-                if (p.userData.age > 1.5) {
+                if (p.userData.age > 1.8) {
                     resetParticle(p);
                 }
             });
@@ -208,6 +210,16 @@
             }
             launchOverlay.style.opacity = '0';
             setTimeout(() => launchOverlay.style.display = 'none', 500);
+        });
+
+        // Forced visibility update on AR state changes
+        modelViewer.addEventListener('ar-status', (event) => {
+            const hotspot = document.querySelector('[slot="hotspot-fire"]');
+            if (event.detail.status === 'object-placed' || event.detail.status === 'session-started') {
+                hotspot.style.display = 'block';
+                hotspot.style.visibility = 'visible';
+                hotspot.style.opacity = '1';
+            }
         });
 
         modelViewer.addEventListener('click', (event) => {
