@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dumpster Fire AR</title>
+    <!-- Import Model Viewer component -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+        }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        model-viewer {
+            width: 100vw;
+            height: 100vh;
+            --poster-color: transparent;
+        }
+        .ar-button {
+            background: var(--primary-gradient);
+            padding: 12px 24px;
+            border-radius: 9999px;
+            font-weight: 600;
+            box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.3);
+            transition: transform 0.2s ease;
+        }
+        .ar-button:active {
+            transform: scale(0.95);
+        }
+        #controls {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+        }
+        .loader-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #ef4444;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main AR Viewer -->
+    <model-viewer 
+        id="animated-model"
+        src="https://raw.githubusercontent.com/google/model-viewer/master/packages/shared-assets/models/Astronaut.glb" 
+        ios-src="https://raw.githubusercontent.com/JLMBC7/WebXR/dce8b81a061fd304667fd2f2d339493a2c480b90/dumpsterfireanim.usdz"
+        ar 
+        ar-modes="webxr scene-viewer quick-look" 
+        camera-controls 
+        touch-action="pan-y"
+        autoplay
+        shadow-intensity="2" 
+        exposure="1"
+        environment-image="neutral"
+        alt="An animated dumpster fire model for Web AR">
+
+        <!-- Loading UI -->
+        <div slot="poster" class="flex flex-col items-center justify-center h-full w-full bg-slate-900">
+            <div class="loader-spinner mb-4"></div>
+            <p class="text-slate-400 font-medium">Igniting Scene...</p>
+        </div>
+
+        <!-- Custom AR Launch Button -->
+        <div id="controls">
+            <h1 class="text-2xl font-bold mb-2 text-orange-500">Dumpster Fire AR</h1>
+            <p class="text-slate-400 text-sm mb-6">Experience the chaos in your own living room.</p>
+            
+            <button slot="ar-button" class="ar-button flex items-center justify-center mx-auto space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></button>
+                <span>Deploy to AR</span>
+            </button>
+        </div>
+
+        <!-- Error Handling -->
+        <div id="ar-failure" class="hidden absolute top-4 left-4 right-4 p-4 bg-red-600/90 text-white rounded-lg text-center text-sm">
+            AR is not supported on this device/browser.
+        </div>
+
+    </model-viewer>
+
+    <script>
+        const modelViewer = document.querySelector("#animated-model");
+
+        // Handle specific AR status feedback
+        modelViewer.addEventListener('ar-status', (event) => {
+            if (event.detail.status === 'failed') {
+                const failureMsg = document.querySelector('#ar-failure');
+                failureMsg.classList.remove('hidden');
+                setTimeout(() => failureMsg.classList.add('hidden'), 4000);
+            }
+        });
+
+        // Log available animations to console once loaded
+        modelViewer.addEventListener('load', () => {
+            const names = modelViewer.availableAnimations;
+            console.log("Model loaded. Available animations:", names);
+            if (names.length > 0) {
+                modelViewer.animationName = names[0];
+                modelViewer.play();
+            }
+        });
+    </script>
+</body>
+</html>
