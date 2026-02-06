@@ -75,7 +75,7 @@
         <p>Tap to place the dumpster</p>
     </div>
 
-    <!-- Updated src to the animated version and added autoplay -->
+    <!-- Added animation-name to ensure the specific fire animation is targeted -->
     <model-viewer 
         id="ar-element"
         src="https://raw.githubusercontent.com/JLMBC7/WebXR/57f42b5f66e209fc75f4446dda80926d8d96e8bb/dumpsterfireanim.glb" 
@@ -86,6 +86,7 @@
         shadow-intensity="1" 
         auto-rotate
         autoplay
+        animation-name="*"
         loading="eager"
         alt="Animated Dumpster Fire AR Experience">
         
@@ -99,8 +100,17 @@
         const launchOverlay = document.getElementById('launch-overlay');
         const toast = document.getElementById('toast');
 
+        // Force play animation when AR session starts
+        modelViewer.addEventListener('ar-status', (event) => {
+            if (event.detail.status === 'session-started') {
+                modelViewer.play();
+            }
+        });
+
         launchOverlay.addEventListener('click', () => {
-            if (modelViewer.canActivateAR) modelViewer.activateAR();
+            if (modelViewer.canActivateAR) {
+                modelViewer.activateAR();
+            }
             launchOverlay.style.opacity = '0';
             setTimeout(() => launchOverlay.style.display = 'none', 500);
         });
