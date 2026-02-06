@@ -75,7 +75,7 @@
         <p>Tap to place the dumpster</p>
     </div>
 
-    <!-- Added animation-name to ensure the specific fire animation is targeted -->
+    <!-- Added animation-crossfade and fixed loop behavior -->
     <model-viewer 
         id="ar-element"
         src="https://raw.githubusercontent.com/JLMBC7/WebXR/57f42b5f66e209fc75f4446dda80926d8d96e8bb/dumpsterfireanim.glb" 
@@ -100,10 +100,23 @@
         const launchOverlay = document.getElementById('launch-overlay');
         const toast = document.getElementById('toast');
 
-        // Force play animation when AR session starts
+        // Handle animation specifically for AR
+        const startAnimation = () => {
+            if (modelViewer.availableAnimations.length > 0) {
+                // Reset time to 0 and play to prevent getting stuck on a frame
+                modelViewer.currentTime = 0;
+                modelViewer.play();
+            }
+        };
+
+        // Trigger on load for 3D view
+        modelViewer.addEventListener('load', startAnimation);
+
+        // Trigger specifically for AR entry
         modelViewer.addEventListener('ar-status', (event) => {
             if (event.detail.status === 'session-started') {
-                modelViewer.play();
+                // Small delay to ensure WebXR session is stable
+                setTimeout(startAnimation, 100);
             }
         });
 
