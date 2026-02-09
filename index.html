@@ -62,8 +62,8 @@
     <!-- Main AR Viewer -->
     <model-viewer 
         id="animated-model"
-        src="https://raw.githubusercontent.com/google/model-viewer/master/packages/shared-assets/models/Astronaut.glb" 
-        ios-src="https://raw.githubusercontent.com/JLMBC7/WebXR/dce8b81a061fd304667fd2f2d339493a2c480b90/dumpsterfireanim.usdz"
+        src="https://raw.githubusercontent.com/JLMBC7/WebXR/ca72aa4260391cd5f00e3cbc8e3037f664e63fad/FixedFire.glb" 
+        ios-src="https://raw.githubusercontent.com/JLMBC7/WebXR/ca72aa4260391cd5f00e3cbc8e3037f664e63fad/Fixed_Fire.usdz"
         ar 
         ar-modes="webxr scene-viewer quick-look" 
         camera-controls 
@@ -83,10 +83,10 @@
         <!-- Custom AR Launch Button -->
         <div id="controls">
             <h1 class="text-2xl font-bold mb-2 text-orange-500">Dumpster Fire AR</h1>
-            <p class="text-slate-400 text-sm mb-6">Experience the chaos in your own living room.</p>
+            <p class="text-slate-400 text-sm mb-6">Experience the chaos in your own space.</p>
             
             <button slot="ar-button" class="ar-button flex items-center justify-center mx-auto space-x-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></button>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                 <span>Deploy to AR</span>
             </button>
         </div>
@@ -110,11 +110,12 @@
             }
         });
 
-        // Log available animations to console once loaded
+        // Ensure animations play once model loads
         modelViewer.addEventListener('load', () => {
             const names = modelViewer.availableAnimations;
             console.log("Model loaded. Available animations:", names);
             if (names.length > 0) {
+                // Play the first available animation
                 modelViewer.animationName = names[0];
                 modelViewer.play();
             }
