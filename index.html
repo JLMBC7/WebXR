@@ -6,6 +6,7 @@
     <title>Dumpster Fire AR</title>
     <!-- Import Model Viewer component -->
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -43,6 +44,10 @@
             text-align: center;
             width: 90%;
             max-width: 400px;
+            pointer-events: none; /* Allow interaction with model through the div */
+        }
+        #controls * {
+            pointer-events: auto; /* Enable interaction for buttons/text */
         }
         .loader-spinner {
             border: 4px solid rgba(255, 255, 255, 0.1);
@@ -62,8 +67,8 @@
     <!-- Main AR Viewer -->
     <model-viewer 
         id="animated-model"
-        src="https://raw.githubusercontent.com/JLMBC7/WebXR/54342ecee46a65f94af106c8b3ca3646e38f4caf/DumpFire.glb" 
-        ios-src="https://raw.githubusercontent.com/JLMBC7/WebXR/54342ecee46a65f94af106c8b3ca3646e38f4caf/Dump_Fire.usdz"
+        src="https://raw.githubusercontent.com/JLMBC7/WebXR/4dcf1d10971695e078b2542e8697d33942cbec2b/lid_fire.glb" 
+        ios-src="https://raw.githubusercontent.com/JLMBC7/WebXR/4dcf1d10971695e078b2542e8697d33942cbec2b/Lid_Fire.usdz"
         ar 
         ar-modes="webxr scene-viewer quick-look" 
         camera-controls 
@@ -74,26 +79,26 @@
         environment-image="neutral"
         alt="An animated dumpster fire model for Web AR">
 
-        <!-- Loading UI -->
+        <!-- Loading UI (Poster) -->
         <div slot="poster" class="flex flex-col items-center justify-center h-full w-full bg-slate-900">
             <div class="loader-spinner mb-4"></div>
             <p class="text-slate-400 font-medium">Igniting Scene...</p>
         </div>
 
-        <!-- Custom AR Launch Button -->
+        <!-- Custom AR Launch Button Overlay -->
         <div id="controls">
-            <h1 class="text-2xl font-bold mb-2 text-orange-500">Dumpster Fire AR</h1>
+            <h1 class="text-2xl font-bold mb-1 text-orange-500">Dumpster Fire AR</h1>
             <p class="text-slate-400 text-sm mb-6">Experience the chaos in your own space.</p>
             
-            <button slot="ar-button" class="ar-button flex items-center justify-center mx-auto space-x-2">
+            <button slot="ar-button" class="ar-button flex items-center justify-center mx-auto space-x-2 text-white border-none cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                 <span>Deploy to AR</span>
             </button>
         </div>
 
-        <!-- Error Handling -->
-        <div id="ar-failure" class="hidden absolute top-4 left-4 right-4 p-4 bg-red-600/90 text-white rounded-lg text-center text-sm">
-            AR is not supported on this device/browser.
+        <!-- Error Handling Toast -->
+        <div id="ar-failure" class="hidden absolute top-4 left-4 right-4 p-4 bg-red-600/90 text-white rounded-lg text-center text-sm z-50">
+            AR is not supported on this device or browser.
         </div>
 
     </model-viewer>
@@ -115,7 +120,7 @@
             const names = modelViewer.availableAnimations;
             console.log("Model loaded. Available animations:", names);
             if (names.length > 0) {
-                // Play the first available animation
+                // Play the first available animation (usually the fire/smoke)
                 modelViewer.animationName = names[0];
                 modelViewer.play();
             }
